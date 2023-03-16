@@ -14,6 +14,10 @@ def test_base_datamodule(cfg, base_data_module):
     val_size = base_data_module.val_batch_size
     test_size = base_data_module.test_batch_size
     num_targets = base_data_module.dataset.num_targets
+    data_order_seed = base_data_module.torch_data_order_seed
+    
+    # check that the seed we use for initializing dataloader generator is indeed taking effect
+    assert data_order_seed == base_data_module.train_dataloader().generator.initial_seed()
 
     # check batch properties
     batch = next(iter(base_data_module.train_dataloader()))
