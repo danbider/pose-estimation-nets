@@ -37,10 +37,10 @@ def train(cfg: DictConfig):
     # for ensembling exps, we use additional argument cfg.training.rng_seed_all_data_serving
     # if it is not None, we use it to set both dali.general.seed and training.rng_seed_data_order_pt
     if cfg.training.rng_seed_ensembling is not None:
-        warnings.warn("using cfg.training.rng_seed_all_data_serving to override 1) dali.general.seed, 2) training.rng_seed_data_order_pt, 3) training.rng_seed_model_pt")
-        cfg.dali.general.seed = cfg.training.rng_seed_all_data_serving
-        cfg.training.rng_seed_data_order_pt = cfg.training.rng_seed_all_data_serving
-        cfg.training.rng_seed_model_pt = cfg.training.rng_seed_all_data_serving
+        warnings.warn("using cfg.training.rng_seed_ensembling to override 1) dali.general.seed, 2) training.rng_seed_data_order_pt, 3) training.rng_seed_model_pt")
+        cfg.dali.general.seed = cfg.training.rng_seed_ensembling
+        cfg.training.rng_seed_data_order_pt = cfg.training.rng_seed_ensembling
+        cfg.training.rng_seed_model_pt = cfg.training.rng_seed_ensembling
 
     # path handling for toy data
     data_dir, video_dir = return_absolute_data_paths(data_cfg=cfg.data)
