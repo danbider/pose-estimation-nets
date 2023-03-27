@@ -151,6 +151,7 @@ class DataExtractor(object):
                         train_frames=data_module.train_frames,
                         dali_config=data_module.dali_config,
                         torch_seed=data_module.torch_seed,
+                        torch_data_order_seed=data_module.torch_data_order_seed,
                     )
                 elif isinstance(data_module, BaseDataModule):
                     data_module_new = BaseDataModule(
@@ -163,6 +164,7 @@ class DataExtractor(object):
                         val_probability=data_module.val_probability,
                         train_frames=data_module.train_frames,
                         torch_seed=data_module.torch_seed,
+                        torch_data_order_seed=data_module.torch_data_order_seed,
                     )
                     # data_module_new.setup()
 
