@@ -418,6 +418,8 @@ def predict_single_video(
     if delete_trainer:
         del trainer
     del predict_loader
+    del pred_handler
+    del vid_pred_class
     gc.collect()
     torch.cuda.empty_cache()
 
