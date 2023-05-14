@@ -3,41 +3,42 @@ from setuptools import find_packages, setup
 import subprocess
 import re
 
+# -------- this is setup.py modified for Code Ocean, to install DALI with CUDA 11.0 --------
+# it cannot detect nvcc because the paths on the Code Ocean container are different
+
 VERSION = "0.0.1"  # was previously None
 
 # add the README.md file to the long_description
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+# def get_cuda_version():
+#     nvcc_paths = ["nvcc", "/usr/local/cuda/bin/nvcc"]
+#     for nvcc in nvcc_paths:
+#         try:
+#             output = subprocess.check_output([nvcc, "--version"]).decode()
+#             match = re.search(r"release (\d+\.\d+)", output)
+#             if match:
+#                 return float(match.group(1))
+#         except FileNotFoundError:
+#             continue
 
-def get_cuda_version():
-    nvcc_paths = ["nvcc", "/usr/local/cuda/bin/nvcc"]
-    for nvcc in nvcc_paths:
-        try:
-            output = subprocess.check_output([nvcc, "--version"]).decode()
-            match = re.search(r"release (\d+\.\d+)", output)
-            if match:
-                return float(match.group(1))
-        except FileNotFoundError:
-            continue
-
-    print("nvcc is not installed.")
-    return None
-
-
-cuda_version = get_cuda_version()
+#     print("nvcc is not installed.")
+#     return None
 
 
-if cuda_version is not None:
-    if 11.0 <= cuda_version < 12.0:
-        dali = "nvidia-dali-cuda110"
-    elif 12.0 <= cuda_version < 13.0:
-        dali = "nvidia-dali-cuda120"
-    else:
-        raise ValueError("Unsupported CUDA version.")
-else:
-    raise ValueError("CUDA not found.")
-print(f"Found CUDA version: {cuda_version}, using DALI: {dali}")
+# cuda_version = get_cuda_version()
+
+# if cuda_version is not None:
+#     if 11.0 <= cuda_version < 12.0:
+#         dali = "nvidia-dali-cuda110"
+#     elif 12.0 <= cuda_version < 13.0:
+#         dali = "nvidia-dali-cuda120"
+#     else:
+#         raise ValueError("Unsupported CUDA version.")
+# else:
+#     raise ValueError("CUDA not found.")
+# print(f"Found CUDA version: {cuda_version}, using DALI: {dali}")
 
 
 install_requires = [
@@ -55,7 +56,7 @@ install_requires = [
     "pillow==9.5.0",
     "pytest==7.3.1",
     "lightning",
-    dali,
+    "nvidia-dali-cuda110",
     "tensorboard==2.13.0",
     "lightning-bolts==0.6.0.post1",
     "seaborn==0.12.2",
