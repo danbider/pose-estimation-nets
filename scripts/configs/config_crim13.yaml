@@ -77,6 +77,10 @@ training:
   rng_seed_data_pt: 0
   # rng seed for weight initialization
   rng_seed_model_pt: 0
+  # rng seed for torch data order
+  rng_seed_data_order_pt: 0
+  # for ensembling, rng seed that (!!) overrides (!!) rng_seed_model_pt, rng_seed_data_order_pt, dali.general.seed
+  rng_seed_ensembling: null
   # learning rate scheduler
   # multisteplr | [todo - reducelronplateau]
   lr_scheduler: multisteplr
