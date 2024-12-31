@@ -204,3 +204,8 @@ callbacks:
     increase_factor: 0.01
     final_val: 1.0
     freeze_until_epoch: 0
+
+hydra:
+  run:
+    dir:
+      /tmp/test
