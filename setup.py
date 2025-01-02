@@ -116,12 +116,9 @@ setup(
     author_email="danbider@gmail.com",
     url="https://github.com/danbider/lightning-pose",
     keywords=["machine learning", "deep learning", "computer_vision"],
-    package_dir={
-        "lightning_pose": "lightning_pose",
-    },
     entry_points={
         'console_scripts': [
-            'litpose = lightning_pose.commandline.main:main',
+            'litpose = litpose.main:main',
         ],
     },
     include_package_data=True,  # required to get the non-.py data files in the wheel

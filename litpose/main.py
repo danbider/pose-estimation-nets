@@ -6,15 +6,12 @@ litpose train <data_dir>
 /outputs
 
 """
-
 import sys
 from pathlib import Path
-from lightning_pose.commandline import friendly
-from lightning_pose.commandline import types
-
+from . import friendly
+from . import types
 
 def main():
-
 
     parser = friendly.ArgumentParser()
     subparsers = parser.add_subparsers(
@@ -49,7 +46,10 @@ def main():
 
     # Predict command
     predict_parser = subparsers.add_parser("predict")
-    predict_parser.add_argument("--config", type=str, help="Path to config file.")
+    predict_parser.add_argument(
+        "--model_dir",
+        type=types.existing_model_dir,
+        help="The directory under ./outputs/ for the model.")
     # Add arguments specific to the 'predict' command here
 
     # If no commands provided, display the help message.
@@ -78,6 +78,9 @@ def main():
         if args.overrides:
             print(f"Overrides: {args.overrides}")
 
+        # TODO: Move some aspects of directory mgmt to the train function.
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         with hydra.initialize_config_dir(
             version_base="1.1", config_dir=str(args.config_file.parent.absolute())
         ):
@@ -85,13 +88,10 @@ def main():
                 config_name=args.config_file.stem, overrides=args.overrides
             )
 
-            # TODO Move output directory management to the train function.
-            output_dir.mkdir(parents=True, exist_ok=True)
-            os.chdir(output_dir)
-
             # Delay this import because it's slow.
             from lightning_pose.train import train
-
+            # Maintain legacy hydra chdir until downstream no longer depends on it.
+            os.chdir(output_dir)
             train(cfg)
 
     elif args.command == "predict":

@@ -3,6 +3,7 @@ import argparse
 import sys
 import shutil
 
+
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self, **kwargs):
         super().__init__(
@@ -34,6 +35,7 @@ class ArgumentSubParser(ArgumentParser):
         self.is_sub_parser = True
 
 
+# Source: https://gist.github.com/panzi/b4a51b3968f67b9ff4c99459fb9c5b3d
 class _SmartFormatter(argparse.HelpFormatter):
     def _split_lines(self, text: str, width: int) -> List[str]:
         lines: List[str] = []

@@ -13,6 +13,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from typeguard import typechecked
 
+from lightning_pose.datasets import LabeledDataset
 from lightning_pose.utils import pretty_print_cfg, pretty_print_str
 from lightning_pose.utils.cropzoom import generate_cropped_labeled_frames, generate_cropped_video
 from lightning_pose.utils.io import (
@@ -36,14 +37,34 @@ from lightning_pose.utils.scripts import (
     get_loss_factories,
     get_model,
 )
+from lightning_pose.model import Model
 
-# to ignore imports for sphix-autoapidoc
+# to ignore imports for sphinx-autoapidoc
 __all__ = ["train"]
+
+class cfg_utils:
+    def __init__(self, cfg: DictConfig):
+        self.cfg = cfg
+    def test_videos(self) -> list[str]:
+        return check_video_paths(return_absolute_path(self.cfg.eval.test_videos_directory))
 
 
 @typechecked
 def train(cfg: DictConfig) -> None:
+    # model = _train(cfg)
+    # DEBUG: Temporarily skip training and go straight to post-training analysis.
+    import os
+    model = Model.from_dir(os.getcwd())
 
+    training_dataset = LabeledDataset.from_cfg(cfg)
+    model.predict_dataset(training_dataset)
+
+    if cfg.eval.predict_vids_after_training:
+        for video_file in cfg_utils(cfg).test_videos():
+            model.predict_video(Path(video_file), generate_labeled_video=cfg.eval.save_vids_after_training)
+
+
+def _train(cfg: DictConfig) -> Model:
     # reset all seeds
     seed = 0
     os.environ["PYTHONHASHSEED"] = str(seed)
@@ -169,6 +190,14 @@ def train(cfg: DictConfig) -> None:
     if not trainer.is_global_zero:
         sys.exit(0)
 
+    return Model.from_dir(hydra_output_directory)
+
+
+def _evaluate_on_labeled_data(model: Model):
+
+
+    pedf = pixel_error(df, model.get_training_labels_df())
+    """
     # ----------------------------------------------------------------------------------
     # Post-training analysis
     # ----------------------------------------------------------------------------------
@@ -207,7 +236,7 @@ def train(cfg: DictConfig) -> None:
     # Rebuild trainer with devices=1 for prediction. Training flags not needed.
     trainer = pl.Trainer(accelerator="gpu", devices=1)
     pretty_print_str("Predicting train/val/test images...")
-    # compute and save frame-wise predictions
+    # compute and save frame-wise predictions"""
     preds_file = os.path.join(hydra_output_directory, "predictions.csv")
     predict_dataset(
         cfg=cfg,
@@ -225,6 +254,9 @@ def train(cfg: DictConfig) -> None:
     if len(multiview_pred_files) > 0:
         preds_file = multiview_pred_files
     compute_metrics(cfg=cfg, preds_file=preds_file, data_module=data_module_pred)
+
+
+def _other_stuff():
 
     is_detector = (
         cfg.get("detector") is not None and cfg.detector.get("crop_ratio") is not None

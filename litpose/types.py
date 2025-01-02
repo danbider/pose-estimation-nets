@@ -27,3 +27,11 @@ def model_dir(filepath):
     if len(path.parts) > 2:
         raise argparse.ArgumentTypeError("model_dir cannot be more than 2 levels deep")
     return path
+
+
+def existing_model_dir(filepath):
+    path = model_dir(filepath)
+    if not path.is_dir():
+        raise argparse.ArgumentTypeError(f"Directory model_dir does not exist: {filepath}")
+
+    return path
