@@ -1,18 +1,20 @@
+import copy
 from typing import TypedDict, Optional
 
 import pandas as pd
 from pathlib import Path
 
 from lightning.pytorch import LightningModule
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from lightning_pose.datasets import LabeledFrameDataset
+from lightning_pose.datasets import LabeledDataset
 from lightning_pose.model_config import ModelConfig
 from lightning_pose.models import ALLOWED_MODELS
 from lightning_pose.utils.io import ckpt_path_from_base_path
-from lightning_pose.utils.predictions import load_model_from_checkpoint
+from lightning_pose.utils.predictions import load_model_from_checkpoint, export_predictions_and_labeled_video
 
 __all__ = ["Model"]
+
 
 class Model:
     model_dir: Path
@@ -34,13 +36,16 @@ class Model:
         return self.config.cfg
 
     def _load(self):
-        ckpt_file = ckpt_path_from_base_path(
-            base_path=str(self.model_dir), model_name=self.cfg.model.model_name
-        )
-        self.model: ALLOWED_MODELS = load_model_from_checkpoint(
-            cfg=self.cfg, ckpt_file=ckpt_file, eval=True, skip_data_module=True,
-        )
-
+        if self.model is None:
+            ckpt_file = ckpt_path_from_base_path(
+                base_path=str(self.model_dir), model_name=self.cfg.model.model_name
+            )
+            self.model: ALLOWED_MODELS = load_model_from_checkpoint(
+                cfg=self.cfg,
+                ckpt_file=ckpt_file,
+                eval=True,
+                skip_data_module=True,
+            )
 
     #############
     # Prediction
@@ -51,64 +56,108 @@ class Model:
         metrics: pd.DataFrame
         output_locations: dict
 
-    UNSPECIFIED = ''
-
-    def predict_dataset(self,
-                        dataset: LabeledDataset,
-                        prediction_output_path: Optional[str] = UNSPECIFIED,
-                        compute_metrics: bool=True,
-                        metric_output_path: str = UNSPECIFIED,
-                        ) -> PredictionResult:
-        """
-        Run prediction on a labeled dataset.
-        Compute metrics.
-        Save outputs.
-
+    def predict_frames(
+        self,
+        dataset: LabeledDataset,
+        prediction_output_path: Optional[str] = None,
+        compute_metrics: bool = True,
+        metric_output_path: Optional[str] = None,
+    ) -> PredictionResult:
+        """Predicts on a labeled dataset (or unlabeled frames, not yet supported).
         Args:
-            dataset:
+            dataset (LabeledDataset): The labeled dataset to predict on.
+            prediction_output_path (Optional[str], optional): The path to save the
+                                                             predictions to. If None,
+                                                             predictions are not saved.
+                                     TODO: should we default to this being in the model directory?
+                                     TODO: should we put the files in folders for better organization?
+                                     TODO: and to resolve parsing ambiguity with prediction_new_{view_name}?
+                                     TODO: Ask Matt.
+            compute_metrics (bool, optional): Whether to compute metrics on the
+                                              predictions. Defaults to True.
+            metric_output_path (str, optional): The path to save the metrics to.
+                                                If unspecified and compute_metrics is True,
+                                                metrics are not saved.
+                                                Defaults to UNSPECIFIED.
 
         Returns:
-
+            PredictionResult: A PredictionResult object containing the predictions
+                              and metrics.
         """
         self._load()
 
         preds_file = prediction_output_path
 
         if prediction_output_path is None:
-            raise NotImplementedError("predicting without saving file is not yet implemented.")
+            raise NotImplementedError(
+                "predicting without saving file is not yet implemented."
+            )
 
-        if prediction_output_path == self.UNSPECIFIED:
-            if self.config.is_single_view():
-                preds_file = "predictions.csv"
-            else:
-                # TODO implement format string support in predict_dataset function.
-                preds_file = "predictions_{view_name}.csv"
 
         from lightning_pose.utils.predictions import predict_dataset
-        data_module = _build_datamodule_pred(self.cfg)
-        df = predict_dataset(self.cfg, data_module, model=self.model, preds_file=preds_file)
 
-        #if compute_metrics:
+        cfg_pred = OmegaConf.merge(self.cfg, dataset.to_partial_cfg())
+        data_module = _build_datamodule_pred(cfg_pred)
+        df = predict_dataset(
+            cfg_pred, data_module, model=self.model, preds_file=preds_file
+        )
+
+        # if compute_metrics:
         #    compute_metrics()
 
-        return self.PredictionResult(predictions = df)
+        return self.PredictionResult(predictions=df)
 
+
+    def predict_video_file(
+        self,
+        video_file: str | Path,
+        prediction_output_path: Optional[str] = None,
+        compute_metrics: bool = True,
+        metric_output_path: Optional[str] = None,
+        generate_labeled_video: bool = False,
+    ) -> PredictionResult:
+        video_file = Path(video_file)
+
+        prediction_csv_file = self.model_dir / "video_preds" / f"{video_file.stem}.csv"
+
+        labeled_mp4_file = None
+        if generate_labeled_video:
+            labeled_mp4_file = self.model_dir / "labeled_videos" / f"{video_file.stem}_labeled.mp4"
+
+        if self.config.cfg.eval.get("predict_vids_after_training_save_heatmaps", False):
+            raise NotImplementedError("Implement this after cleaning up _predict_frames: "
+                                      "Set a flag on the model to return heatmaps. "
+                                      "Use trainer.predict instead of side-stepping it.")
+        df = export_predictions_and_labeled_video(
+            video_file=str(video_file),
+            cfg=self.config.cfg,
+            prediction_csv_file=str(prediction_csv_file),
+            labeled_mp4_file=labeled_mp4_file,
+            model=self.model,
+        )
+
+        return self.PredictionResult(predictions=df)
 
 def _build_datamodule_pred(cfg: DictConfig):
-    # Legacy predict_dataset fn requires a datamodule. TODO move to predict_dataset.
+    # Legacy predict_dataset fn requires a datamodule. TODO move to legacy predict_dataset.
     from lightning_pose.utils.scripts import (
         get_dataset,
         get_data_module,
         get_imgaug_transform,
-        )
+    )
     import copy
+
     cfg_pred = copy.deepcopy(cfg)
     cfg_pred.training.imgaug = "default"
     imgaug_transform_pred = get_imgaug_transform(cfg=cfg_pred)
     dataset_pred = get_dataset(
-        cfg=cfg_pred, data_dir=cfg_pred.data.data_dir, imgaug_transform=imgaug_transform_pred
+        cfg=cfg_pred,
+        data_dir=cfg_pred.data.data_dir,
+        imgaug_transform=imgaug_transform_pred,
     )
-    data_module_pred = get_data_module(cfg=cfg_pred, dataset=dataset_pred, video_dir=cfg_pred.data.video_dir)
+    data_module_pred = get_data_module(
+        cfg=cfg_pred, dataset=dataset_pred, video_dir=cfg_pred.data.video_dir
+    )
     data_module_pred.setup()
 
     return data_module_pred

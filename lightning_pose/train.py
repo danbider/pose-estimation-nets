@@ -42,12 +42,6 @@ from lightning_pose.model import Model
 # to ignore imports for sphinx-autoapidoc
 __all__ = ["train"]
 
-class cfg_utils:
-    def __init__(self, cfg: DictConfig):
-        self.cfg = cfg
-    def test_videos(self) -> list[str]:
-        return check_video_paths(return_absolute_path(self.cfg.eval.test_videos_directory))
-
 
 @typechecked
 def train(cfg: DictConfig) -> None:
@@ -56,12 +50,47 @@ def train(cfg: DictConfig) -> None:
     import os
     model = Model.from_dir(os.getcwd())
 
-    training_dataset = LabeledDataset.from_cfg(cfg)
-    model.predict_dataset(training_dataset)
+    _evaluate_on_training_dataset(model)
+    _evaluate_on_ood_dataset_if_applicable(model)
+    _predict_videos_if_applicable(model)
 
-    if cfg.eval.predict_vids_after_training:
-        for video_file in cfg_utils(cfg).test_videos():
-            model.predict_video(Path(video_file), generate_labeled_video=cfg.eval.save_vids_after_training)
+def _evaluate_on_training_dataset(model: Model):
+    pretty_print_str("Predicting train/val/test images...")
+
+    if model.config.is_single_view():
+        preds_file = "predictions.csv"
+    else:
+        # TODO implement format string support in predict_dataset function.
+        preds_file = "predictions_{view_name}.csv"
+
+    model.predict_frames(model.config.training_dataset, prediction_output_path=preds_file)
+
+
+def _evaluate_on_ood_dataset_if_applicable(model: Model):
+    csv_file = model.config.training_dataset.csv_file
+    ood_csv_file = csv_file.with_stem(csv_file.stem + "_new")
+
+    if (model.config.training_dataset.data_dir / ood_csv_file).is_file():
+        pretty_print_str("Predicting OOD images...")
+
+        ood_dataset = copy.deepcopy(model.config.training_dataset)
+        ood_dataset.csv_file = ood_csv_file
+        ood_dataset.train_prob = 1
+        ood_dataset.val_prob = 0
+        ood_dataset.train_frames = 1
+
+        if model.config.is_single_view():
+            ood_preds_file = "predictions_new.csv"
+        else:
+            ood_preds_file = "predictions_new_{view_name}.csv"
+
+        model.predict_frames(ood_dataset, prediction_output_path=ood_preds_file)
+
+
+def _predict_videos_if_applicable(model: Model):
+    if model.config.cfg.eval.predict_vids_after_training:
+        for video_file in model.config.test_video_files():
+            model.predict_video(Path(video_file), labeled_video_output_path=cfg.eval.save_vids_after_training)
 
 
 def _train(cfg: DictConfig) -> Model:
