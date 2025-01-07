@@ -49,7 +49,7 @@ __all__ = ["train"]
 
 @typechecked
 def train(cfg: DictConfig) -> None:
-    # model = _train(cfg)
+    model = _train(cfg)
     # DEBUG: Temporarily skip training and go straight to post-training analysis.
     import os
 

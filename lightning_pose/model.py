@@ -22,14 +22,14 @@ __all__ = ["Model"]
 
 class Model:
     model_dir: Path
-    cfg: ModelConfig
+    config: ModelConfig
     model: Optional[ALLOWED_MODELS] = None
 
     @staticmethod
     def from_dir(model_dir: str | Path):
         model_dir = Path(model_dir)
-        cfg = ModelConfig.from_yaml_file(model_dir / "config.yaml")
-        return Model(model_dir, cfg)
+        config = ModelConfig.from_yaml_file(model_dir / "config.yaml")
+        return Model(model_dir, config)
 
     def __init__(self, model_dir: str | Path, config: ModelConfig):
         self.model_dir = Path(model_dir)
@@ -44,7 +44,7 @@ class Model:
             ckpt_file = ckpt_path_from_base_path(
                 base_path=str(self.model_dir), model_name=self.cfg.model.model_name
             )
-            self.model: ALLOWED_MODELS = load_model_from_checkpoint(
+            self.model = load_model_from_checkpoint(
                 cfg=self.cfg,
                 ckpt_file=ckpt_file,
                 eval=True,
@@ -60,6 +60,13 @@ class Model:
         metrics: pd.DataFrame
         output_locations: dict
 
+
+    """
+    TODO: should we default to this being in the model directory?
+    TODO: should we put the files in folders for better organization?
+    TODO: and to resolve parsing ambiguity with prediction_new_{view_name}?
+    TODO: Ask Matt.
+    """
     def predict_frames(
         self,
         dataset: LabeledDataset,
@@ -71,12 +78,8 @@ class Model:
         Args:
             dataset (LabeledDataset): The labeled dataset to predict on.
             prediction_output_path (Optional[str], optional): The path to save the
-                                                             predictions to. If None,
-                                                             predictions are not saved.
-                                     TODO: should we default to this being in the model directory?
-                                     TODO: should we put the files in folders for better organization?
-                                     TODO: and to resolve parsing ambiguity with prediction_new_{view_name}?
-                                     TODO: Ask Matt.
+                                                               predictions to. If None,
+                                                               predictions are not saved.
             compute_metrics (bool, optional): Whether to compute metrics on the
                                               predictions. Defaults to True.
             metric_output_path (str, optional): The path to save the metrics to.
@@ -122,6 +125,7 @@ class Model:
         metric_output_path: Optional[str] = None,
         generate_labeled_video: bool = False,
     ) -> PredictionResult:
+        self._load()
         video_file = Path(video_file)
 
         prediction_csv_file = self.model_dir / "video_preds" / f"{video_file.stem}.csv"

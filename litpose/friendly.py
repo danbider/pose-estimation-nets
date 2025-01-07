@@ -7,7 +7,7 @@ import shutil
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self, **kwargs):
         super().__init__(
-            formatter_class=_SmartFormatter,
+            formatter_class=_HelpFormatter,
             epilog="documentation: https://lightning-pose.readthedocs.io/en/latest/source/user_guide/index.html",
             **kwargs,
         )
@@ -35,32 +35,26 @@ class ArgumentSubParser(ArgumentParser):
         self.is_sub_parser = True
 
 
-# Source: https://gist.github.com/panzi/b4a51b3968f67b9ff4c99459fb9c5b3d
-class _SmartFormatter(argparse.HelpFormatter):
+class _HelpFormatter(argparse.HelpFormatter):
+    """Modifications on help text formatting for easier readability."""
+
     def _split_lines(self, text: str, width: int) -> List[str]:
+        """Modified to preserve newlines and long words."""
+        # First split into paragraphs, then wrap each separately:
+        # https://docs.python.org/3/library/textwrap.html#textwrap.TextWrapper.replace_whitespace
+        paragraphs = text.splitlines()
+        import textwrap
         lines: List[str] = []
-        for line_str in text.split("\n"):
-            line: List[str] = []
-            line_len = 0
-            for word in line_str.split(" "):
-                word_len = len(word)
-                next_len = line_len + word_len
-                if line:
-                    next_len += 1
-                if next_len > width:
-                    lines.append(" ".join(line))
-                    line.clear()
-                    line_len = 0
-                elif line:
-                    line_len += 1
-
-                line.append(word)
-                line_len += word_len
-
-            lines.append(" ".join(line))
+        for p in paragraphs:
+            lines.extend(textwrap.wrap(p, width, break_long_words=False, break_on_hyphens=False))
         return lines
+        
 
     def _fill_text(self, text: str, width: int, indent: str) -> str:
         return "\n".join(
             indent + line for line in self._split_lines(text, width - len(indent))
         )
+
+    def _format_action(self, *args, **kwargs):
+        """Modified to add a newline after each argument, for better readability."""
+        return super()._format_action(*args, **kwargs) + "\n"

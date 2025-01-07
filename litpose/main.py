@@ -22,35 +22,68 @@ def main():
     )
 
     # Train command
-    train_parser = subparsers.add_parser("train")
+    train_parser = subparsers.add_parser(
+        "train",
+        usage="litpose train <config_file> \\\n"
+        "                      [--output_dir OUTPUT_DIR] \\\n"
+        "                      [--overrides KEY=VALUE...]""",)
     train_parser.add_argument(
         "config_file",
         type=types.config_file,
-        help="Path to training config file.\n"
+        help="path a config file.\n"
         "Download and modify the template from "
         "https://github.com/paninski-lab/lightning-pose/blob/main/scripts/configs/config_default.yaml",
     )
     train_parser.add_argument(
-        "--model_dir",
+        "--output_dir",
         type=types.model_dir,
-        help="The directory under ./outputs/ for the model.\n"
-        "  * Defaults to the run timestamp.\n"
-        "  * If model_dir is one level deep, model_dir will be model_dir/run_timestamp.\n"
-        "  * If model_dir is two levels deep, model_dir will be model_dir without modification.\n",
+        help="explicitly specifies the output model directory.\n"
+        "If not specified, defaults to "
+        "./outputs/{YYYY-MM-DD}/{HH:MM:SS}/"
     )
     train_parser.add_argument(
-        "--overrides", nargs="*", help="Config overrides; uses Hydra syntax."
+        "--overrides", nargs="*", metavar='KEY=VALUE', help="overrides attributes of the config file. Uses hydra syntax:\n"
+        "https://hydra.cc/docs/advanced/override_grammar/basic/"
     )
 
     # Add arguments specific to the 'train' command here
 
     # Predict command
-    predict_parser = subparsers.add_parser("predict")
+    predict_parser = subparsers.add_parser(
+        "predict",
+    usage="litpose predict <model_dir> \\\n"
+    "                        [--video_file VIDEO_FILE [VIDEO_FILE ...]] \\\n"
+    "                        [--videos_dir VIDEOS_DIR [VIDEOS_DIR ...]] \\\n"
+    "                        [--image_file IMAGE_FILE [IMAGE_FILE ...]] \\\n"
+    "                        [--images_dir IMAGES_DIR [IMAGES_DIR ...]]",)
     predict_parser.add_argument(
-        "--model_dir",
+        "model_dir",
         type=types.existing_model_dir,
-        help="The directory under ./outputs/ for the model.")
-    # Add arguments specific to the 'predict' command here
+        help="path to a model directory")
+
+    predict_parser.add_argument(
+        "--video_file",
+        type=Path,
+        nargs="+",
+        help="video file to predict on")
+
+    predict_parser.add_argument(
+        "--videos_dir",
+        nargs="+",
+        type=Path,
+        help="directory of video files to predict on")
+
+    predict_parser.add_argument(
+        "--image_file",
+        nargs="+",
+        type=Path,
+        help="image file to predict on")
+
+    predict_parser.add_argument(
+        "--images_dir",
+        nargs="+",
+        type=Path,
+        help="directory of image files to predict on")
 
     # If no commands provided, display the help message.
     if len(sys.argv) == 1:
@@ -64,15 +97,12 @@ def main():
         import datetime
         import os
 
-        # Simplified ISO format, e.g. "2024-12-30T19:58:50"
-        curr_datetime = datetime.datetime.now().replace(microsecond=0).isoformat()
-        model_dir = curr_datetime
-        if args.model_dir:
-            if len(args.model_dir.parts) == 1:
-                model_dir = args.model_dir / curr_datetime
-            if len(args.model_dir.parts) == 2:
-                model_dir = args.model_dir
-        output_dir = Path("outputs") / model_dir
+        # E.g. "2024-12-30_19:58:50"
+        if args.output_dir:
+            output_dir = args.output_dir
+        else:
+            now = datetime.datetime.now()
+            output_dir = Path("outputs") / now.strftime("%Y-%m-%d") / now.strftime("%H:%M:%S")
 
         print(f"Output directory: {output_dir.absolute()}")
         if args.overrides:

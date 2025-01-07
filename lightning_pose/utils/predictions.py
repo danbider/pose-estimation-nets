@@ -301,7 +301,7 @@ def predict_dataset(
     Args:
         cfg: hydra config
         data_module: data module that contains dataloaders for train, val, test splits
-        preds_file: absolute filename for the predictions .csv file
+        preds_file: absolute filename for the predictions .csv file. If relative, it's relative to the model directory.
         ckpt_file: absolute path to the checkpoint of your trained model; requires .ckpt suffix
         trainer: pl.Trainer object
         model: Lightning Module
@@ -333,7 +333,13 @@ def predict_dataset(
     labeled_preds_df = pred_handler(preds=labeled_preds)
     if isinstance(labeled_preds_df, dict):
         for view_name, df in labeled_preds_df.items():
-            df.to_csv(preds_file.replace(".csv", f"_{view_name}.csv"))
+            if "view_name" in preds_file:
+                df.to_csv(preds_file.format({"view_name": view_name}))
+            else:
+                # Continue to support legacy logic
+                # It takes a string like "predictions.csv" and adds a _{view_name} suffix to the stem.
+                df.to_csv(preds_file.replace(".csv", f"_{view_name}.csv"))
+
     else:
         labeled_preds_df.to_csv(preds_file)
 
