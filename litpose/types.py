@@ -32,6 +32,8 @@ def model_dir(filepath):
 def existing_model_dir(filepath):
     path = model_dir(filepath)
     if not path.is_dir():
-        raise argparse.ArgumentTypeError(f"Directory model_dir does not exist: {filepath}")
+        raise argparse.ArgumentTypeError(
+            f"Directory model_dir does not exist: {filepath}"
+        )
 
     return path

@@ -8,7 +8,8 @@ class ArgumentParser(argparse.ArgumentParser):
     def __init__(self, **kwargs):
         super().__init__(
             formatter_class=_HelpFormatter,
-            epilog="documentation: https://lightning-pose.readthedocs.io/en/latest/source/user_guide/index.html",
+            epilog="documentation: \n"
+            "  https://lightning-pose.readthedocs.io/en/latest/source/user_guide/index.html",
             **kwargs,
         )
         self.is_sub_parser = False
@@ -44,11 +45,13 @@ class _HelpFormatter(argparse.HelpFormatter):
         # https://docs.python.org/3/library/textwrap.html#textwrap.TextWrapper.replace_whitespace
         paragraphs = text.splitlines()
         import textwrap
+
         lines: List[str] = []
         for p in paragraphs:
-            lines.extend(textwrap.wrap(p, width, break_long_words=False, break_on_hyphens=False))
+            lines.extend(
+                textwrap.wrap(p, width, break_long_words=False, break_on_hyphens=False)
+            )
         return lines
-        
 
     def _fill_text(self, text: str, width: int, indent: str) -> str:
         return "\n".join(
