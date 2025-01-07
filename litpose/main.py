@@ -74,7 +74,7 @@ def main():
                 model_dir = args.model_dir
         output_dir = Path("outputs") / model_dir
 
-        print(f"Output directory: {output_dir}")
+        print(f"Output directory: {output_dir.absolute()}")
         if args.overrides:
             print(f"Overrides: {args.overrides}")
 

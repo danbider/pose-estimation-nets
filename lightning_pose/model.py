@@ -11,7 +11,11 @@ from lightning_pose.datasets import LabeledDataset
 from lightning_pose.model_config import ModelConfig
 from lightning_pose.models import ALLOWED_MODELS
 from lightning_pose.utils.io import ckpt_path_from_base_path
-from lightning_pose.utils.predictions import load_model_from_checkpoint, export_predictions_and_labeled_video
+from lightning_pose.utils.predictions import (
+    load_model_from_checkpoint,
+    export_predictions_and_labeled_video,
+)
+from lightning_pose.utils.scripts import compute_metrics as compute_metrics_fn
 
 __all__ = ["Model"]
 
@@ -19,7 +23,7 @@ __all__ = ["Model"]
 class Model:
     model_dir: Path
     cfg: ModelConfig
-    model: LightningModule
+    model: Optional[ALLOWED_MODELS] = None
 
     @staticmethod
     def from_dir(model_dir: str | Path):
@@ -93,7 +97,6 @@ class Model:
                 "predicting without saving file is not yet implemented."
             )
 
-
         from lightning_pose.utils.predictions import predict_dataset
 
         cfg_pred = OmegaConf.merge(self.cfg, dataset.to_partial_cfg())
@@ -102,11 +105,14 @@ class Model:
             cfg_pred, data_module, model=self.model, preds_file=preds_file
         )
 
-        # if compute_metrics:
-        #    compute_metrics()
+        if compute_metrics:
+            # TODO: Fix Multiview logic for preds_file. compute_metrics currently inputs a list of preds_files.
+            # Make it accept a pattern instead.
+            compute_metrics_fn(cfg_pred, preds_file, data_module)
+
+        # TODO: Generate detector outputs.
 
         return self.PredictionResult(predictions=df)
-
 
     def predict_video_file(
         self,
@@ -122,12 +128,16 @@ class Model:
 
         labeled_mp4_file = None
         if generate_labeled_video:
-            labeled_mp4_file = self.model_dir / "labeled_videos" / f"{video_file.stem}_labeled.mp4"
+            labeled_mp4_file = (
+                self.model_dir / "labeled_videos" / f"{video_file.stem}_labeled.mp4"
+            )
 
         if self.config.cfg.eval.get("predict_vids_after_training_save_heatmaps", False):
-            raise NotImplementedError("Implement this after cleaning up _predict_frames: "
-                                      "Set a flag on the model to return heatmaps. "
-                                      "Use trainer.predict instead of side-stepping it.")
+            raise NotImplementedError(
+                "Implement this after cleaning up _predict_frames: "
+                "Set a flag on the model to return heatmaps. "
+                "Use trainer.predict instead of side-stepping it."
+            )
         df = export_predictions_and_labeled_video(
             video_file=str(video_file),
             cfg=self.config.cfg,
@@ -136,7 +146,14 @@ class Model:
             model=self.model,
         )
 
+        # This is only needed for computing PCA metrics.
+        # TODO push this down to compute metrics?
+        data_module = _build_datamodule_pred(self.cfg)
+        if compute_metrics:
+           compute_metrics_fn(self.cfg, str(prediction_csv_file), data_module)
+
         return self.PredictionResult(predictions=df)
+
 
 def _build_datamodule_pred(cfg: DictConfig):
     # Legacy predict_dataset fn requires a datamodule. TODO move to legacy predict_dataset.
