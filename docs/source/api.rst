@@ -4,7 +4,7 @@ Lightning Pose API
 Public API
 ------------
 
-.. automodapi:: lightning_pose.Model
+.. automodapi:: lightning_pose.model
 
 Internal API
 ------------

@@ -75,6 +75,7 @@ class Model:
         metric_output_path: Optional[str] = None,
     ) -> PredictionResult:
         """Predicts on a labeled dataset (or unlabeled frames, not yet supported).
+        
         Args:
             dataset (LabeledDataset): The labeled dataset to predict on.
             prediction_output_path (Optional[str], optional): The path to save the
