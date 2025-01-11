@@ -1,6 +1,14 @@
 Lightning Pose API
 ==================
 
+Public API
+------------
+
+.. automodapi:: lightning_pose.model
+
+Internal API
+------------
+
 * :ref:`metrics and callbacks modules <lp_modules>`
 * :ref:`data package <lp_modules_data>`
 * :ref:`losses package <lp_modules_losses>`

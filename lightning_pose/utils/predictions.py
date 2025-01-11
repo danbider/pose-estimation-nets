@@ -73,11 +73,9 @@ class PredictionHandler:
         if data_module is None:
             if video_file is None:
                 raise ValueError("must pass data_module to constructor if predicting on a dataset")
-            if cfg.data.get("keypoint_names", None) is None \
-                    and cfg.data.get("keypoints", None) is None:
-                raise ValueError(
-                    "must include `keypoint_names` or `keypoints` field in cfg.data if not "
-                    "passing data_module as an argument to PredictionHandler")
+        if cfg.data.get("keypoint_names", None) is None:
+            raise ValueError(
+                "must include `keypoint_names` field in cfg.data")
 
         self.cfg = cfg
         self.data_module = data_module
@@ -95,14 +93,7 @@ class PredictionHandler:
 
     @property
     def keypoint_names(self):
-        if self.cfg.data.get("keypoint_names", None) is not None:
-            if isinstance(self.cfg.data.get("keypoint_names"), DictConfig):
-                return dict(self.cfg.data.get("keypoint_names"))
-            return list(self.cfg.data.keypoint_names)
-        elif self.cfg.data.get("keypoints", None) is not None:
-            return list(self.cfg.data.keypoints)
-        else:
-            return self.data_module.dataset.keypoint_names
+        return list(self.cfg.data.keypoint_names)
 
     @property
     def do_context(self):
@@ -310,7 +301,7 @@ def predict_dataset(
     Args:
         cfg: hydra config
         data_module: data module that contains dataloaders for train, val, test splits
-        preds_file: absolute filename for the predictions .csv file
+        preds_file: absolute filename for the predictions .csv file. If relative, it's relative to the model directory.
         ckpt_file: absolute path to the checkpoint of your trained model; requires .ckpt suffix
         trainer: pl.Trainer object
         model: Lightning Module
@@ -342,7 +333,15 @@ def predict_dataset(
     labeled_preds_df = pred_handler(preds=labeled_preds)
     if isinstance(labeled_preds_df, dict):
         for view_name, df in labeled_preds_df.items():
-            df.to_csv(preds_file.replace(".csv", f"_{view_name}.csv"))
+            if "view_name" in preds_file:
+                if preds_file is not None:
+                    df.to_csv(preds_file.format({"view_name": view_name}))
+            else:
+                if preds_file is not None:
+                    # Continue to support legacy logic
+                    # It takes a string like "predictions.csv" and adds a _{view_name} suffix to the stem.
+                    df.to_csv(preds_file.replace(".csv", f"_{view_name}.csv"))
+
     else:
         labeled_preds_df.to_csv(preds_file)
 
@@ -887,7 +886,7 @@ def export_predictions_and_labeled_video(
     data_module: Optional[Union[BaseDataModule, UnlabeledDataModule]] = None,
     labeled_mp4_file: Optional[str] = None,
     save_heatmaps: Optional[bool] = False,
-) -> None:
+) -> pd.DataFrame:
     """Export predictions csv and a labeled video for a single video file."""
 
     if ckpt_file is None and model is None:
@@ -923,3 +922,4 @@ def export_predictions_and_labeled_video(
             output_video_path=labeled_mp4_file,
             colormap=cfg.eval.get("colormap", "cool")
         )
+    return preds_df
