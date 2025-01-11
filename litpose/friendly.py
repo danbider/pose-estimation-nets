@@ -48,9 +48,11 @@ class _HelpFormatter(argparse.HelpFormatter):
 
         lines: List[str] = []
         for p in paragraphs:
-            lines.extend(
-                textwrap.wrap(p, width, break_long_words=False, break_on_hyphens=False)
-            )
+            p_lines = textwrap.wrap(p, width, break_long_words=False, break_on_hyphens=False)
+            # An empty paragraph should result in a newline.
+            if not p_lines:
+                p_lines = ['']
+            lines.extend(p_lines)
         return lines
 
     def _fill_text(self, text: str, width: int, indent: str) -> str:

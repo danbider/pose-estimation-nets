@@ -22,7 +22,10 @@ class ModelConfig:
         return not self.is_multi_view()
 
     def is_multi_view(self):
-        return self.cfg.data.get('view_names') is not None and len(self.cfg.data.view_names) > 1
+        if self.cfg.data.get('view_names') is None:
+            return False
+        if len(self.cfg.data.view_names) == 1:
+            raise ValueError("view_names should not be specified if there is only one view.")
 
     ## Eval ##
 

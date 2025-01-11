@@ -66,12 +66,14 @@ def _evaluate_on_training_dataset(model: Model):
     if model.config.is_single_view():
         preds_file = "predictions.csv"
     else:
-        # TODO implement format string support in predict_dataset function.
+        # TODO implement format string support in predict_on_labeled_dataset function.
         preds_file = "predictions_{view_name}.csv"
 
-    model.predict_frames(
-        model.config.training_dataset, prediction_output_path=preds_file,
-    )
+    if model.config.is_multi_view():
+        for csv_file, view_name in zip(model.config.csv_files(), model.config.view_names()):
+            model.predict_on_labeled_dataset(
+                LabeledDataset.from_cfg(cfg), prediction_output_path=preds_file,
+            )
 
 
 def _evaluate_on_ood_dataset_if_applicable(model: Model):

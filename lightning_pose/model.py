@@ -60,33 +60,32 @@ class Model:
         metrics: pd.DataFrame
         output_locations: dict
 
-
     """
     TODO: should we default to this being in the model directory?
     TODO: should we put the files in folders for better organization?
     TODO: and to resolve parsing ambiguity with prediction_new_{view_name}?
     TODO: Ask Matt.
     """
-    def predict_frames(
+
+    def predict_on_labeled_dataset(
         self,
         dataset: LabeledDataset,
         prediction_output_path: Optional[str] = None,
         compute_metrics: bool = True,
-        metric_output_path: Optional[str] = None,
+        generate_labeled_images: bool = True,
+        labeled_image_output_path: Optional[str] = None,
     ) -> PredictionResult:
-        """Predicts on a labeled dataset (or unlabeled frames, not yet supported).
-        
+        """Predicts on a labeled dataset and computes error/loss metrics if applicable.
+
         Args:
             dataset (LabeledDataset): The labeled dataset to predict on.
-            prediction_output_path (Optional[str], optional): The path to save the
-                                                               predictions to. If None,
-                                                               predictions are not saved.
-            compute_metrics (bool, optional): Whether to compute metrics on the
-                                              predictions. Defaults to True.
-            metric_output_path (str, optional): The path to save the metrics to.
-                                                If unspecified and compute_metrics is True,
-                                                metrics are not saved.
-                                                Defaults to UNSPECIFIED.
+            prediction_output_path (str, optional): The path to save the predictions to.
+                If not specified, predictions are not saved. For multi-view, the placeholder
+                "{view_name}" is expected to be in the filename, and will be substituted for the
+                view name.
+            compute_metrics (bool, optional): Whether to compute pixel_error and on the
+                predictions. If predictions are being saved, then metrics will also be saved
+                in files like {prediction_file_stem}_{metric_name}.csv.
 
         Returns:
             PredictionResult: A PredictionResult object containing the predictions
@@ -96,23 +95,35 @@ class Model:
 
         preds_file = prediction_output_path
 
-        if prediction_output_path is None:
+        if prediction_output_path is None and compute_metrics:
             raise NotImplementedError(
-                "predicting without saving file is not yet implemented."
+                "computing metrics currently requires saving predictions. specify a prediction_output_path."
             )
 
         from lightning_pose.utils.predictions import predict_dataset
 
         cfg_pred = OmegaConf.merge(self.cfg, dataset.to_partial_cfg())
-        data_module = _build_datamodule_pred(cfg_pred)
+        data_module_pred = _build_datamodule_pred(cfg_pred)
+
         df = predict_dataset(
-            cfg_pred, data_module, model=self.model, preds_file=preds_file
+            cfg_pred, data_module_pred, model=self.model, preds_file=preds_file
         )
 
         if compute_metrics:
-            # TODO: Fix Multiview logic for preds_file. compute_metrics currently inputs a list of preds_files.
-            # Make it accept a pattern instead.
-            compute_metrics_fn(cfg_pred, preds_file, data_module)
+            # For multiview, Compute metrics requires preds_file be a list in order of sorted view_names.
+            compute_metrics_on_preds_file = preds_file
+            if self.config.is_multi_view():
+                compute_metrics_on_preds_file = [
+                    preds_file.format(
+                        {"view_name": view_name}
+                        for view_name in sorted(self.config.cfg.data.view_names)
+                    )
+                ]
+            compute_metrics_fn(
+                cfg=cfg_pred,
+                preds_file=compute_metrics_on_preds_file,
+                data_module=data_module_pred,
+            )
 
         # TODO: Generate detector outputs.
 
@@ -155,7 +166,7 @@ class Model:
         # TODO push this down to compute metrics?
         data_module = _build_datamodule_pred(self.cfg)
         if compute_metrics:
-           compute_metrics_fn(self.cfg, str(prediction_csv_file), data_module)
+            compute_metrics_fn(self.cfg, str(prediction_csv_file), data_module)
 
         return self.PredictionResult(predictions=df)
 

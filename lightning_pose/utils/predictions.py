@@ -334,11 +334,13 @@ def predict_dataset(
     if isinstance(labeled_preds_df, dict):
         for view_name, df in labeled_preds_df.items():
             if "view_name" in preds_file:
-                df.to_csv(preds_file.format({"view_name": view_name}))
+                if preds_file is not None:
+                    df.to_csv(preds_file.format({"view_name": view_name}))
             else:
-                # Continue to support legacy logic
-                # It takes a string like "predictions.csv" and adds a _{view_name} suffix to the stem.
-                df.to_csv(preds_file.replace(".csv", f"_{view_name}.csv"))
+                if preds_file is not None:
+                    # Continue to support legacy logic
+                    # It takes a string like "predictions.csv" and adds a _{view_name} suffix to the stem.
+                    df.to_csv(preds_file.replace(".csv", f"_{view_name}.csv"))
 
     else:
         labeled_preds_df.to_csv(preds_file)

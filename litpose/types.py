@@ -22,10 +22,6 @@ def config_file(filepath):
 
 def model_dir(filepath):
     path = Path(filepath)
-    if ".." in path.parts:
-        raise argparse.ArgumentTypeError("model_dir cannot contain '..'")
-    if len(path.parts) > 2:
-        raise argparse.ArgumentTypeError("model_dir cannot be more than 2 levels deep")
     return path
 
 

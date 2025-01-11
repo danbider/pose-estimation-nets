@@ -6,6 +6,7 @@ litpose train <data_dir>
 /outputs
 
 """
+
 import sys
 from pathlib import Path
 from . import friendly
@@ -57,46 +58,48 @@ def main():
     # Predict command
     predict_parser = subparsers.add_parser(
         "predict",
-        description="Predict keypoints on one or more images or videos.",
-        usage="litpose predict <model_dir> \\\n"
-        "                        [--video_file VIDEO_FILE [VIDEO_FILE ...]] \\\n"
-        "                        [--videos_dir VIDEOS_DIR [VIDEOS_DIR ...]] \\\n"
-        "                        [--image_file IMAGE_FILE [IMAGE_FILE ...]] \\\n"
-        "                        [--images_dir IMAGES_DIR [IMAGES_DIR ...]]",
+        description="Predicts keypoints on videos or images.\n"
+                    "\n"
+                    "  Video predictions are saved to:\n"
+                    "    <model_dir>/\n"
+                    "    └── video_preds/\n"
+                    "        ├── <video_filename>.csv              (predictions)\n"
+                    "        ├── <video_filename>_<metric>.csv     (losses)\n"
+                    "        └── labeled_videos/\n"
+                    "            └── <video_filename>_labeled.mp4\n"
+                    "\n"
+                    "  Image predictions are saved to:\n"
+                    "    <model_dir>/\n"
+                    "    └── image_preds/\n"
+                    "        └── <image_dirname | csv_filename | timestamp>/\n"
+                    "            ├── predictions.csv\n"
+                    "            ├── predictions_<metric>.csv      (losses)\n"
+                    "            └── <image_filename>_labeled.png\n",
+        usage="litpose predict <model_dir> <input_path:video|image|dir|csv>...  [OPTIONS]",
     )
     predict_parser.add_argument(
         "model_dir", type=types.existing_model_dir, help="path to a model directory"
     )
 
-    argg_input_files = predict_parser.add_argument_group('input files')
-    argg_input_files.add_argument(
-        "--video_file", type=Path, nargs="+", help="video file to predict on"
-    )
-
-    argg_input_files.add_argument(
-        "--videos_dir",
-        nargs="+",
+    predict_parser.add_argument(
+        "input_path",
         type=Path,
-        help="directory of video files to predict on",
-    )
-
-    argg_input_files.add_argument(
-        "--image_file", nargs="+", type=Path, help="image file to predict on"
-    )
-
-    argg_input_files.add_argument(
-        "--images_dir",
         nargs="+",
-        type=Path,
-        help="directory of image files to predict on",
+        help="one or more paths. They can be video files, image files, CSV files, or directories.\n"
+             "    directory: predicts over videos or images in the directory.\n"
+             "               saves image outputs to `image_preds/<directory_name>`\n"
+             "    video file: predicts on the video\n"
+             "    image file: predicts on the image. saves outputs to `image_preds/<timestamp>`\n"
+             "    CSV file: predicts on the images specified in the file.\n"
+             "              uses the labels to compute pixel error.\n"
+             "              saves outputs to `image_preds/<csv_file_name>`\n"
     )
 
-    argg_post_prediction = predict_parser.add_argument_group('post-prediction')
+    argg_post_prediction = predict_parser.add_argument_group("post-prediction")
     argg_post_prediction.add_argument(
         "--skip_viz",
-        default=True,
-        type=bool,
-        help="generate a labeled video with the predicted keypoints",
+        action="store_true",
+        help="skip generating prediction-annotated images/videos",
     )
 
     # If no commands provided, display the help message.

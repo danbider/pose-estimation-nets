@@ -553,7 +553,17 @@ def compute_metrics(
     preds_file: Union[str, List[str]],
     data_module: Optional[Union[BaseDataModule, UnlabeledDataModule]] = None,
 ) -> None:
-    """Compute various metrics on predictions csv file, potentially for multiple views."""
+    """Compute various metrics on predictions csv file, potentially for multiple views.
+    Saves metrics to files next to predictions file, in the convention of:
+        {prediction_file_stem}_{metric_name}.csv
+
+    Args:
+        cfg: the config used to determine whether single or multiview and which metrics
+            to compute
+        preds_file: Path to model predictions used to compute metrics.
+            For multiview, a list of paths.
+
+        """
     if (
         cfg.data.get("view_names", None)
         and len(cfg.data.view_names) > 1
@@ -567,7 +577,6 @@ def compute_metrics(
         ):
             assert view_name in preds_file_
             labels_file = return_absolute_path(os.path.join(cfg.data.data_dir, csv_file))
-            # preds_file_ = preds_file.replace(".csv", f"_{view_name}.csv")
             compute_metrics_single(
                 cfg=cfg,
                 labels_file=labels_file,
