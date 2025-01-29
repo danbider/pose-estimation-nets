@@ -107,7 +107,7 @@ class HeatmapTracker(BaseSupervisedTracker):
         # TODO: downsample_factor may be in mismatch between datamodule and model.
         self.downsample_factor = downsample_factor
         self.upsampling_layers = self.make_upsampling_layers()
-        self.initialize_upsampling_layers()
+        self.initialize_upsampling_layers(self.upsampling_layers)
         self.output_shape = output_shape
         # TODO: temp=1000 works for 64x64 heatmaps, need to generalize to other shapes
         self.temperature = torch.tensor(1000.0, device=self.device)  # soft argmax temp
@@ -213,9 +213,10 @@ class HeatmapTracker(BaseSupervisedTracker):
                 peaks[i, j, 1] = idxs_[0]  # y coords
         return peaks
 
-    def initialize_upsampling_layers(self) -> None:
+    @staticmethod
+    def initialize_upsampling_layers(upsampling_layers) -> None:
         """Intialize the Conv2DTranspose upsampling layers."""
-        for index, layer in enumerate(self.upsampling_layers):
+        for index, layer in enumerate(upsampling_layers):
             if index > 0:  # we ignore the PixelShuffle
                 if isinstance(layer, nn.ConvTranspose2d):
                     torch.nn.init.xavier_uniform_(layer.weight, gain=0.01)

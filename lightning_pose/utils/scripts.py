@@ -34,6 +34,7 @@ from lightning_pose.models import (
     ALLOWED_MODELS,
     HeatmapTracker,
     HeatmapTrackerMHCRNN,
+    HeatmapTrackerMultiview,
     RegressionTracker,
     SemiSupervisedHeatmapTracker,
     SemiSupervisedHeatmapTrackerMHCRNN,
@@ -93,7 +94,7 @@ def get_dataset(
                 imgaug_transform=imgaug_transform,
                 do_context=False,  # no context for regression models
             )
-    elif cfg.model.model_type == "heatmap" or cfg.model.model_type == "heatmap_mhcrnn":
+    elif cfg.model.model_type.find("heatmap") > -1:
         if cfg.data.get("view_names", None) and len(cfg.data.view_names) > 1:
             UserWarning(
                 "No precautions regarding the size of the images were considered here, "
@@ -223,7 +224,7 @@ def get_loss_factories(
 
     # collect all supervised losses in a dict; no extra params needed
     # set "log_weight = 0.0" so that weight = 1 and effective weight is (1 / 2)
-    if cfg.model.model_type == "heatmap" or cfg.model.model_type == "heatmap_mhcrnn":
+    if cfg.model.model_type in ["heatmap", "heatmap_mhcrnn", "heatmap_multiview"]:
         loss_name = "heatmap_" + cfg.model.heatmap_loss_type
         loss_params_dict["supervised"][loss_name] = {"log_weight": 0.0}
     else:
@@ -354,7 +355,6 @@ def get_model(
 
             model = HeatmapTracker(
                 num_keypoints=cfg.data.num_keypoints,
-                num_targets=data_module.dataset.num_targets,
                 loss_factory=loss_factories["supervised"],
                 backbone=cfg.model.backbone,
                 pretrained=backbone_pretrained,
@@ -368,6 +368,20 @@ def get_model(
         elif cfg.model.model_type == "heatmap_mhcrnn":
             model = HeatmapTrackerMHCRNN(
                 num_keypoints=cfg.data.num_keypoints,
+                loss_factory=loss_factories["supervised"],
+                backbone=cfg.model.backbone,
+                pretrained=backbone_pretrained,
+                downsample_factor=cfg.data.downsample_factor,
+                output_shape=data_module.dataset.output_shape,
+                torch_seed=cfg.training.rng_seed_model_pt,
+                lr_scheduler=lr_scheduler,
+                lr_scheduler_params=lr_scheduler_params,
+                image_size=image_h,  # only used by ViT
+            )
+        elif cfg.model.model_type == "heatmap_multiview":
+            model = HeatmapTrackerMultiview(
+                num_keypoints=cfg.data.num_keypoints,
+                num_views=len(cfg.data.view_names),
                 loss_factory=loss_factories["supervised"],
                 backbone=cfg.model.backbone,
                 pretrained=backbone_pretrained,
