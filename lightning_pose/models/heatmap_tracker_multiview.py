@@ -95,7 +95,7 @@ class HeatmapTrackerMultiview(HeatmapTracker):
         self.num_views = num_views
         self.multiview_head = ResidualBlock(
             in_channels=num_views,
-            intermediate_channels=64,
+            intermediate_channels=32,
             out_channels=num_views,
             final_relu=False,  # we'll use spatial_softmax2d instead later
         )

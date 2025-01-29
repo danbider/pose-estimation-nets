@@ -28,6 +28,10 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
     """
 
     kind = cfg.training.get("imgaug", "default")
+    if kind != "default" and cfg.model.model_type == "heatmap_multiview":
+        # do not include geometric transforms for multiview
+        print("Using heatmap_multiview model; removing geometric transforms from imgaug pipeline")
+        kind = "dlc-mv"  # don't allow for top-down option, which includes flips
 
     data_transform = []
 
@@ -36,7 +40,7 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
         # resizing happens below
         print("using default image augmentation pipeline (resizing only)")
 
-    elif kind in ["dlc", "dlc-lr", "dlc-top-down"]:
+    elif kind in ["dlc", "dlc-lr", "dlc-top-down", "dlc-mv"]:
 
         print(f"using {kind} image augmentation pipeline")
 
@@ -51,11 +55,12 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
         apply_prob_0 = 0.5
 
         # rotate
-        rotation = 25  # rotation uniformly sampled from (-rotation, +rotation)
-        data_transform.append(iaa.Sometimes(
-            0.4,
-            iaa.Affine(rotate=(-rotation, rotation))
-        ))
+        if kind.find("-mv") == -1:
+            rotation = 25  # rotation uniformly sampled from (-rotation, +rotation)
+            data_transform.append(iaa.Sometimes(
+                0.4,
+                iaa.Affine(rotate=(-rotation, rotation))
+            ))
         # motion blur
         k = 5  # kernel size of blur
         angle = 90  # blur direction uniformly sampled from (-angle, +angle)
@@ -111,11 +116,12 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
             iaa.Emboss(alpha=alpha, strength=strength)
         ))
         # crop
-        crop_by = 0.15  # number of pix to crop on each side of img given as a fraction
-        data_transform.append(iaa.Sometimes(
-            0.4,
-            iaa.CropAndPad(percent=(-crop_by, crop_by), keep_size=False)
-        ))
+        if kind.find("-mv") == -1:
+            crop_by = 0.15  # number of pix to crop on each side of img given as a fraction
+            data_transform.append(iaa.Sometimes(
+                0.4,
+                iaa.CropAndPad(percent=(-crop_by, crop_by), keep_size=False)
+            ))
 
     else:
         raise NotImplementedError("must choose imgaug kind from 'default', 'dlc', 'dlc-top-down'")
