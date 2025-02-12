@@ -19,7 +19,11 @@ from lightning_pose.utils.predictions import (
 
 # Import as different name to avoid naming conflict with the kwarg `compute_metrics`.
 from lightning_pose.utils.scripts import compute_metrics as compute_metrics_fn
-from lightning_pose.utils.scripts import get_data_module, get_dataset, get_imgaug_transform
+from lightning_pose.utils.scripts import (
+    get_data_module,
+    get_dataset,
+    get_imgaug_transform,
+)
 
 __all__ = ["Model"]
 
@@ -41,10 +45,20 @@ class Model:
     UNSPECIFIED = "unspecified"
 
     @staticmethod
-    def from_dir(model_dir: str | Path):
+    def from_dir(model_dir: str | Path, hydra_overrides: list[str] = None):
         """Create a `Model` instance for a model stored at `model_dir`."""
-        model_dir = Path(model_dir)
-        config = ModelConfig.from_yaml_file(model_dir / "config.yaml")
+        model_dir = Path(model_dir).absolute()
+
+        if hydra_overrides is not None:
+            import hydra
+
+            with hydra.initialize_config_dir(
+                version_base="1.1", config_dir=str(model_dir)
+            ):
+                cfg = hydra.compose(config_name="config", overrides=hydra_overrides)
+                config = ModelConfig(cfg)
+        else:
+            config = ModelConfig.from_yaml_file(model_dir / "config.yaml")
 
         return Model(model_dir, config)
 

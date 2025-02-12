@@ -8,6 +8,8 @@ from omegaconf import OmegaConf
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from lightning_pose.model_config import ModelConfig
+
 if TYPE_CHECKING:
     from lightning_pose.model import Model
 
@@ -100,6 +102,13 @@ def _build_parser():
         "              uses the labels to compute pixel error.\n"
         "              saves outputs to `image_preds/<csv_file_name>`\n",
     )
+    predict_parser.add_argument(
+        "--overrides",
+        nargs="*",
+        metavar="KEY=VALUE",
+        help="overrides attributes of the config file. Uses hydra syntax:\n"
+        "https://hydra.cc/docs/advanced/override_grammar/basic/",
+    )
 
     post_prediction_args = predict_parser.add_argument_group("post-prediction")
     post_prediction_args.add_argument(
@@ -122,6 +131,7 @@ def _build_parser():
         "    <model_dir>/\n"
         "    └── video_preds/\n"
         "        └── <video_filename>_bbox.csv         (bbox)\n"
+        "        └── remapped_<video_filename>.csv         (remap command)\n"
         "    └── cropped_videos/\n"
         "        └── cropped_<video_filename>.mp4              (bbox)\n",
         usage="litpose crop <model_dir> <input_path:video>...",
@@ -187,6 +197,30 @@ def _crop(args: argparse.Namespace):
         )
 
 
+def _remap_preds(args: argparse.Namespace):
+    """TODO: Integrate this with command-line, replace --detector_mode.
+    Below script is for videos (not yet utilized) but can easily be extended to CSV file.
+    """
+    import lightning_pose.utils.cropzoom as cz
+
+    model_dir = args.model_dir
+    input_paths = [Path(p) for p in args.input_path]
+
+    for input_video_file in input_paths:
+        assert input_video_file.suffix == ".mp4", "Only mp4 files supported."
+        input_preds_file = model_dir / "video_preds" / (input_video_file.stem + ".csv")
+        input_bbox_file = (
+            model_dir / "cropped_videos" / (input_video_file.stem + "_bbox.csv")
+        )
+        output_file = input_preds_file.with_stem("remapped_" + input_preds_file.stem)
+
+        cz.generate_cropped_csv_file(
+            input_preds_file,
+            input_bbox_file,
+            output_file,
+        )
+
+
 def _train(args: argparse.Namespace):
     import hydra
 
@@ -228,7 +262,7 @@ def _predict(args: argparse.Namespace):
     # Delay this import because it's slow.
     from lightning_pose.model import Model
 
-    model = Model.from_dir(args.model_dir)
+    model = Model.from_dir(args.model_dir, hydra_overrides=args.overrides)
     if args.detector_mode:
         model.cfg.detector = OmegaConf.create(
             {
