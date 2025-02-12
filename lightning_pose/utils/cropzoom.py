@@ -1,6 +1,7 @@
 import multiprocessing
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pandas as pd
 from moviepy.editor import VideoFileClip
@@ -94,6 +95,14 @@ def _compute_bbox_df(
     # Get x,y columns for anchor_keypoints (or all keypoints if anchor_keypoints is empty)
     coord_mask = pred_df.columns.get_level_values("coords").isin(["x", "y"])
     if len(anchor_keypoints) > 0:
+        # Validate anchor keypoints.
+        invalid_keypoints = set(anchor_keypoints) - set(
+            pred_df.columns.get_level_values("bodyparts")
+        )
+        assert (
+            not invalid_keypoints
+        ), f"Anchor keypoints not found in DataFrame: {invalid_keypoints}"
+
         coord_mask &= pred_df.columns.get_level_values("bodyparts").isin(
             anchor_keypoints
         )
@@ -191,14 +200,15 @@ def _crop_images(
 
 
 @typechecked
-def _crop_video_moviepy(
-    video_file: Path, bbox_df: pd.DataFrame, output_directory: Path
-):
+def _crop_video_moviepy(video_file: Path, bbox_df: pd.DataFrame, output_file: Path):
     clip = VideoFileClip(str(video_file))
 
-    b = bbox_df.iloc[0]
-    h = b.h
-    w = b.w
+    h = bbox_df["h"].median()
+    w = bbox_df["w"].median()
+
+    # Convert to nearest even integer
+    h = round(h / 2) * 2
+    w = round(w / 2) * 2
 
     def crop_frame(get_frame, t):
         frame = get_frame(t)
@@ -211,9 +221,7 @@ def _crop_video_moviepy(
         b = bbox_df.iloc[frame_index]
         x1, x2 = b.x, b.x + b.w
         y1, y2 = b.y, b.y + b.h
-        assert b.h == h
-        assert b.w == w
-        cropped_frame = np.zeros((h, w, frame.shape[2]), dtype=np.uint8)
+        cropped_frame = np.zeros((b.h, b.w, frame.shape[2]), dtype=np.uint8)
 
         # Calculate valid crop boundaries within the original frame
         x1_valid = max(0, x1)
@@ -232,14 +240,12 @@ def _crop_video_moviepy(
             y1_valid:y2_valid, x1_valid:x2_valid
         ]
 
-        return cropped_frame
+        return cv2.resize(cropped_frame, (w, h))
 
     # renamed image_transform in 2.0.0
     cropped_clip = clip.fl(crop_frame, apply_to="mask")
 
-    cropped_clip.write_videofile(
-        str(output_directory / video_file.name), codec="libx264"
-    )
+    cropped_clip.write_videofile(str(output_file), codec="libx264")
 
 
 @typechecked
@@ -277,30 +283,26 @@ def generate_cropped_labeled_frames(
 
 @typechecked
 def generate_cropped_video(
-    video_path: Path, detector_model_dir: Path, detector_cfg: DictConfig
+    input_video_file: Path,
+    input_preds_file: Path,
+    detector_cfg: DictConfig,
+    output_bbox_file: Path,
+    output_file: Path,
 ) -> None:
     """TODO make consistent with generate_cropped_labeled_frames"""
-    video_path = Path(video_path)
 
     # Given the predictions, compute cropping bboxes
-    preds_file = detector_model_dir / "video_preds" / (video_path.stem + ".csv")
-
-    # load predictions
-    # TODO If predictions do not exist, predict with detector model
-    pred_df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
+    pred_df = pd.read_csv(input_preds_file, header=[0, 1, 2], index_col=0)
 
     # Save cropping bboxes
     bbox_df = _compute_bbox_df(
         pred_df, list(detector_cfg.anchor_keypoints), crop_ratio=detector_cfg.crop_ratio
     )
-    output_bbox_path = (
-        detector_model_dir / "cropped_videos" / (video_path.stem + "_bbox.csv")
-    )
-    output_bbox_path.parent.mkdir(parents=True, exist_ok=True)
-    bbox_df.to_csv(output_bbox_path)
+    output_bbox_file.parent.mkdir(parents=True, exist_ok=True)
+    bbox_df.to_csv(output_bbox_file)
 
     # Generate a cropped video for debugging purposes.
-    _crop_video_moviepy(video_path, bbox_df, detector_model_dir / "cropped_videos")
+    _crop_video_moviepy(input_video_file, bbox_df, output_file)
 
 
 def generate_cropped_csv_file(

@@ -112,6 +112,27 @@ def _build_parser():
         action="store_true",
         help="Run this on a trained model to output detector outputs (cropped images and labeled CSV file).",
     )
+
+    # Crop command
+    crop_parser = subparsers.add_parser(
+        "crop",
+        description="Predicts keypoints on videos or images.\n"
+        "\n"
+        "  Cropped videos are saved to:\n"
+        "    <model_dir>/\n"
+        "    └── video_preds/\n"
+        "        └── <video_filename>_bbox.csv         (bbox)\n"
+        "    └── cropped_videos/\n"
+        "        └── cropped_<video_filename>.mp4              (bbox)\n",
+        usage="litpose crop <model_dir> <input_path:video>...",
+    )
+    crop_parser.add_argument(
+        "model_dir", type=types.existing_model_dir, help="path to a model directory"
+    )
+
+    crop_parser.add_argument(
+        "input_path", type=Path, nargs="+", help="one or more video files"
+    )
     return parser
 
 
@@ -130,6 +151,40 @@ def main():
 
     elif args.command == "predict":
         _predict(args)
+
+    elif args.command == "crop":
+        _crop(args)
+
+
+def _crop(args: argparse.Namespace):
+    import lightning_pose.utils.cropzoom as cz
+
+    model_dir = args.model_dir
+    input_paths = [Path(p) for p in args.input_path]
+
+    for input_video_file in input_paths:
+        assert input_video_file.suffix == ".mp4", "Only mp4 files supported."
+        input_preds_file = model_dir / "video_preds" / (input_video_file.stem + ".csv")
+        output_bbox_file = (
+            model_dir / "cropped_videos" / (input_video_file.stem + "_bbox.csv")
+        )
+        output_file = (
+            model_dir / "cropped_videos" / ("cropped_" + input_video_file.name)
+        )
+        detector_cfg = OmegaConf.create(
+            {
+                "crop_ratio": 2.0,
+                # TODO add back in anchor keypoints.
+                "anchor_keypoints": [],
+            }
+        )
+        cz.generate_cropped_video(
+            input_video_file,
+            input_preds_file,
+            detector_cfg,
+            output_bbox_file,
+            output_file,
+        )
 
 
 def _train(args: argparse.Namespace):
@@ -159,7 +214,7 @@ def _train(args: argparse.Namespace):
         # TODO: Move some aspects of directory mgmt to the train function.
         output_dir.mkdir(parents=True, exist_ok=True)
         # Maintain legacy hydra chdir until downstream no longer depends on it.
-        
+
         detector_model = None
         if args.detector_model:
             # create detector model object before chdir so that relative path is resolved correctly
@@ -167,7 +222,7 @@ def _train(args: argparse.Namespace):
 
         os.chdir(output_dir)
         train(cfg, detector_model=detector_model)
-        
+
 
 def _predict(args: argparse.Namespace):
     # Delay this import because it's slow.
@@ -175,10 +230,19 @@ def _predict(args: argparse.Namespace):
 
     model = Model.from_dir(args.model_dir)
     if args.detector_mode:
-        model.cfg.detector = OmegaConf.create({
-            "crop_ratio": 2.0,
-            "anchor_keypoints": ["topBeak", "tipTail", "leftWing", "rightWing", "leftFoot", "rightFoot"]
-        })
+        model.cfg.detector = OmegaConf.create(
+            {
+                "crop_ratio": 2.0,
+                "anchor_keypoints": [
+                    "topBeak",
+                    "tipTail",
+                    "leftWing",
+                    "rightWing",
+                    "leftFoot",
+                    "rightFoot",
+                ],
+            }
+        )
     input_paths = [Path(p) for p in args.input_path]
 
     for p in input_paths:
