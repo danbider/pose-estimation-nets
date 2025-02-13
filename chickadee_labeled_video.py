@@ -10,11 +10,11 @@ lp_dir = Path("/home/ksikka/synced/lightning-pose")
 outputs_dir = lp_dir / "outputs/chickadee/cropzoom"
 
 data_dir = outputs_dir / "detector_0" / "cropped_videos"
-video_dir_1 = outputs_dir / "pose_supervised_0" / "video_preds" / "labeled_videos"
-video_dir_2 = outputs_dir / "pose_ctx_0" / "video_preds" / "labeled_videos"
+video_dir_1 = outputs_dir / "pose_supervised_2" / "video_preds" / "labeled_videos"
+video_dir_2 = outputs_dir / "pose_ctx_2" / "video_preds" / "labeled_videos"
 
-output_vid_dir1 = "/tmp/supervised/"
-output_vid_dir2 = "/tmp/ctx/"
+output_vid_dir1 = "/tmp/supervised2/"
+output_vid_dir2 = "/tmp/ctx2/"
 
 def process_video(video_file, output_vid_dir):
     video_file_og = data_dir / re.sub(r"_labeled\.", ".", video_file.name)
@@ -43,10 +43,10 @@ def iterate_matching_files(dir1_path, dir2_path):
             if file2.is_file():
                 yield (file1, file2)
 
-#list(map(process_video, video_dir_1.iterdir()))
-#list(map(process_video, video_dir_2.iterdir()))
+list(map(lambda x: process_video(x, output_vid_dir1), video_dir_1.iterdir()))
+list(map(lambda x: process_video(x, output_vid_dir2), video_dir_2.iterdir()))
 
 for file1, file2 in iterate_matching_files(output_vid_dir1, output_vid_dir2):
     print(file1, file2)
-    combined_path = "/tmp/combined/" + file1.name
+    combined_path = "/tmp/combined2/" + file1.name
     cp.combine_videos_side_by_side(str(file1), str(file2), combined_path)
