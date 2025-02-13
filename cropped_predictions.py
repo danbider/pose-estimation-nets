@@ -268,6 +268,10 @@ KEYPOINT_COLORS = {
     "leftNeck": (184, 115, 51),  # Copperish neck, between head and back color
     "rightNeck": (160, 82, 45),  # Lighter copperish neck
 }
+import numpy as np
+# Convert the colors to BGR
+for keypoint, color in KEYPOINT_COLORS.items():
+    KEYPOINT_COLORS[keypoint] = tuple(reversed(color))
 
 def draw_keypoints_on_frame(frame, df, threshold=0.5):
     """
@@ -279,13 +283,13 @@ def draw_keypoints_on_frame(frame, df, threshold=0.5):
             Each row should be a keypoint with columns 'x', 'y', and 'likelihood'.
       threshold: The likelihood threshold for drawing a keypoint.
     """
-
     for keypoint, row in df.iterrows():
         x, y, likelihood = row['x'], row['y'], row['likelihood']
         if likelihood > threshold:
             color = KEYPOINT_COLORS.get(keypoint)
             if color:
-                cv2.circle(frame, (int(x), int(y)), 5, color, -1)
+
+                cv2.circle(frame, (int(x), int(y)), 3, color, -1)
 
 import cv2
 def process_video(video_path, df, output_path, threshold=0.9):
