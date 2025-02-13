@@ -11,6 +11,27 @@ from pathlib import Path
 
 """Image processing part"""
 
+# TODO read from a file?
+skeleton = [
+    ("botBeak", "topBeak"),
+    ("topBeak", "topHead"),
+    ("topHead", "rightEye"),
+    ("topHead", "leftEye"),
+    ("topHead", "backHead"),
+    ("backHead", "centerBack"),
+    ("centerBack", "leftWing"),
+    ("centerBack", "rightWing"),
+    ("centerBack", "baseTail"),
+    ("baseTail", "tipTail"),
+    ("centerBack", "leftAnkle"),
+    ("centerBack", "rightAnkle"),
+    ("centerBack", "centerChes"),
+    ("centerBack", "leftNeck"),
+    ("centerBack", "rightNeck"),
+    ("leftAnkle", "leftFoot"),
+    ("rightAnkle", "rightFoot"),
+]
+
 def annotate_image_with_predictions(
     img, predictions, likelihood_threshold, skeleton_color
 ):
@@ -36,26 +57,6 @@ def annotate_image_with_predictions(
             (x - 2, y - 2, x + 2, y + 2), fill=dot_color
         )  # Draw a dot with radius 2
 
-    # TODO read from a file?
-    skeleton = [
-        ("botBeak", "topBeak"),
-        ("topBeak", "topHead"),
-        ("topHead", "rightEye"),
-        ("topHead", "leftEye"),
-        ("topHead", "backHead"),
-        ("backHead", "centerBack"),
-        ("centerBack", "leftWing"),
-        ("centerBack", "rightWing"),
-        ("centerBack", "baseTail"),
-        ("baseTail", "tipTail"),
-        ("centerBack", "leftAnkle"),
-        ("centerBack", "rightAnkle"),
-        ("centerBack", "centerChes"),
-        ("centerBack", "leftNeck"),
-        ("centerBack", "rightNeck"),
-        ("leftAnkle", "leftFoot"),
-        ("rightAnkle", "rightFoot"),
-    ]
     for keypoint1, keypoint2 in skeleton:
         pred1 = predictions.loc[keypoint1]
         pred2 = predictions.loc[keypoint2]
@@ -63,7 +64,7 @@ def annotate_image_with_predictions(
         x2, y2, likelihood2 = pred2.x, pred2.y, pred2.likelihood
         if min(likelihood1, likelihood2) < likelihood_threshold:
             continue
-        draw.line([(x1, y1), (x2, y2)], fill=skeleton_color, width=3)
+        draw.line([(x1, y1), (x2, y2)], fill=skeleton_color, width=2)
 
 
 
@@ -246,27 +247,29 @@ def create_image_gallery_html(image_dir, parent_dir=None):
 
 import cv2
 import pandas as pd
-
-# Keypoint colors (from previous response)
 KEYPOINT_COLORS = {
-    "botBeak": (242, 215, 0),  # Yellowish beak
-    "topBeak": (240, 192, 0),  # Slightly darker yellow
-    "topHead": (217, 140, 0),  # Orange head
-    "rightEye": (0, 0, 0),  # Black eye
-    "leftEye": (0, 0, 0),  # Black eye
-    "backHead": (217, 101, 0),  # Darker orange
-    "centerBack": (139, 69, 19),  # Brown back
-    "leftWing": (160, 82, 45),  # Lighter brown wing
-    "rightWing": (128, 64, 0),  # Darker brown wing
-    "baseTail": (139, 69, 19),  # Brown tail base
-    "tipTail": (85, 39, 0),  # Darker brown tail tip
-    "leftAnkle": (165, 144, 112),  # Light grayish-brown ankle
-    "leftFoot": (133, 112, 80),  # Darker grayish-brown foot
-    "rightAnkle": (149, 128, 96),  # Slightly different shade for right ankle
-    "rightFoot": (117, 96, 64),  # Slightly different shade for right foot
-    "centerChes": (217, 140, 0),  # Orange chest, similar to head
-    "leftNeck": (184, 115, 51),  # Copperish neck, between head and back color
-    "rightNeck": (160, 82, 45),  # Lighter copperish neck
+    "botBeak": (255, 255, 100),    # Bright Yellow
+    "topBeak": (255, 255, 0),    # Brighter Yellow
+
+    "topHead": (100, 100, 255),      # Bright Blue
+    "rightEye": (200, 200, 255),  # Brighter Light Blue
+    "leftEye": (100, 100, 255),   # Brighter Darker Blue
+    "backHead": (50, 50, 255),     # Brighter Dark Blue
+
+    "centerBack": (0, 255, 0),    # Bright Green
+    "leftWing": (128, 255, 128),  # Light Green (already bright)
+    "rightWing": (0, 200, 0),     # Brighter Green
+    "baseTail": (0, 255, 0),     # Bright Green (same as center back)
+    "tipTail": (0, 150, 0),       # Brighter Dark Green
+
+    "leftAnkle": (255, 100, 100),   # Bright Brown
+    "leftFoot": (200, 0, 0),     # Brighter Dark Brown
+    "rightAnkle": (200, 0, 0),    # Brighter Maroon
+    "rightFoot": (150, 0, 0),      # Brighter Very Dark Brown
+
+    "centerChes": (255, 200, 0),  # Bright Orange
+    "leftNeck": (255, 165, 0),    # Brighter Light Orange
+    "rightNeck": (255, 140, 0),    # Brighter Darker Orange
 }
 import numpy as np
 # Convert the colors to BGR
@@ -288,8 +291,16 @@ def draw_keypoints_on_frame(frame, df, threshold=0.5):
         if likelihood > threshold:
             color = KEYPOINT_COLORS.get(keypoint)
             if color:
-
                 cv2.circle(frame, (int(x), int(y)), 3, color, -1)
+                # Draw skeleton
+    for keypoint1, keypoint2 in skeleton:
+        pred1 = df.loc[keypoint1]
+        pred2 = df.loc[keypoint2]
+        x1, y1, likelihood1 = pred1['x'], pred1['y'], pred1['likelihood']
+        x2, y2, likelihood2 = pred2['x'], pred2['y'], pred2['likelihood']
+        if min(likelihood1, likelihood2) > threshold:
+            cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), (47,255,173),
+                     2)  # White color for skeleton
 
 import cv2
 def process_video(video_path, df, output_path, threshold=0.9):
@@ -328,3 +339,55 @@ def process_video(video_path, df, output_path, threshold=0.9):
     out.release()
     cv2.destroyAllWindows()
 
+def combine_videos_side_by_side(video_path1, video_path2, output_path):
+    """
+    Combines two videos side-by-side into a single video.
+
+    Args:
+      video_path1: Path to the first video file.
+      video_path2: Path to the second video file.
+      output_path: Path to save the combined video file.
+    """
+
+    cap1 = cv2.VideoCapture(video_path1)
+    cap2 = cv2.VideoCapture(video_path2)
+
+    frame_width1 = int(cap1.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height1 = int(cap1.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps1 = int(cap1.get(cv2.CAP_PROP_FPS))
+
+    frame_width2 = int(cap2.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height2 = int(cap2.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps2 = int(cap2.get(cv2.CAP_PROP_FPS))
+
+    # Check if both videos have the same FPS and height
+    if fps1!= fps2:
+        print("Error: Videos have different FPS. Cannot combine.")
+        return
+    if frame_height1!= frame_height2:
+        print("Error: Videos have different heights. Cannot combine.")
+        return
+
+    # Calculate output video dimensions
+    output_width = frame_width1 + frame_width2
+    output_height = max(frame_height1, frame_height2)  # Use the larger height
+
+    fourcc = cv2.VideoWriter.fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps1, (output_width, output_height))
+
+    while True:
+        ret1, frame1 = cap1.read()
+        ret2, frame2 = cap2.read()
+
+        if not ret1 or not ret2:
+            break
+
+        # Combine frames side-by-side
+        combined_frame = cv2.hconcat([frame1, frame2])
+
+        out.write(combined_frame)
+
+    cap1.release()
+    cap2.release()
+    out.release()
+    cv2.destroyAllWindows()
