@@ -36,15 +36,22 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
         # resizing happens below
         print("using default image augmentation pipeline (resizing only)")
 
-    elif kind in ["dlc", "dlc-lr", "dlc-top-down"]:
+    elif kind in ["dlc","dlc-lr","dlc-top-down","dlc-top-down-scale", "dlc-scale"]:
 
         print(f"using {kind} image augmentation pipeline")
 
-        # flip horizontally/vertically
-        if kind in ["dlc-lr", "dlc-top-down"]:
-            # horizontal flip
+        if kind == "dlc-top-down-scale" or kind == "dlc-scale":
+            data_transform.append(
+                iaa.Affine(
+                    scale=(0.5, 1.5),
+                )
+            )
+        
+        # flip around horizontal/vertical axes first
+        if kind in ["dlc-top-down", "dlc-top-down-scale","dlc-lr"]:
+            # vertical axis
             data_transform.append(iaa.Fliplr(p=0.5))
-        if kind == "dlc-top-down":
+        if kind in ["dlc-top-down","dlc-top-down-scale"]:
             # vertical flip
             data_transform.append(iaa.Flipud(p=0.5))
 
@@ -118,7 +125,7 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
         ))
 
     else:
-        raise NotImplementedError("must choose imgaug kind from 'default', 'dlc', 'dlc-top-down'")
+        raise NotImplementedError("must choose imgaug kind from 'default', 'dlc','dlc-lr', 'dlc-top-down', 'dlc-scale', 'dlc-top-down-scale'")
 
     # do not resize when using dynamic crop pipeline
     if not cfg.data.get('dynamic_crop', False):
