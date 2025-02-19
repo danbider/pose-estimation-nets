@@ -191,10 +191,14 @@ class HeatmapTrackerMHCRNN(HeatmapTracker):
         # heatmaps -> keypoints
         pred_keypoints_crnn, confidence_crnn = self.run_subpixelmaxima(pred_heatmaps_crnn)
         pred_keypoints_sf, confidence_sf = self.run_subpixelmaxima(pred_heatmaps_sf)
+        # bounding box coords -> original image coords
+        true_keypoints = convert_bbox_coords(batch_dict, batch_dict["keypoints"])
+        pred_keypoints_crnn = convert_bbox_coords(batch_dict, pred_keypoints_crnn)
+        pred_keypoints_sf = convert_bbox_coords(batch_dict, pred_keypoints_sf)
         return {
             "heatmaps_targ": torch.cat([batch_dict["heatmaps"], batch_dict["heatmaps"]], dim=0),
             "heatmaps_pred": torch.cat([pred_heatmaps_crnn, pred_heatmaps_sf], dim=0),
-            "keypoints_targ": torch.cat([batch_dict["keypoints"], batch_dict["keypoints"]], dim=0),
+            "keypoints_targ": torch.cat([true_keypoints, true_keypoints], dim=0),
             "keypoints_pred": torch.cat([pred_keypoints_crnn, pred_keypoints_sf], dim=0),
             "confidences": torch.cat([confidence_crnn, confidence_sf], dim=0),
         }
@@ -252,10 +256,7 @@ class HeatmapTrackerMHCRNN(HeatmapTracker):
     def get_parameters(self):
         params = [
             {"params": self.backbone.parameters(), "name": "backbone", "lr": 0.0},
-            {
-                "params": self.upsampling_layers_rnn.parameters(),
-                "name": "upsampling_rnn",
-            },
+            {"params": self.upsampling_layers_rnn.parameters(), "name": "upsampling_rnn"},
             {"params": self.upsampling_layers_sf.parameters(), "name": "upsampling_sf"},
         ]
         return params

@@ -28,10 +28,12 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
     """
 
     kind = cfg.training.get("imgaug", "default")
-    if kind != "default" and cfg.model.model_type == "heatmap_multiview":
-        # do not include geometric transforms for multiview
-        print("Using heatmap_multiview model; removing geometric transforms from imgaug pipeline")
-        kind = "dlc-mv"  # don't allow for top-down option, which includes flips
+    if kind == "3d-mv":
+        pass
+    # elif kind != "default" and cfg.model.model_type == "heatmap_multiview":
+    #     # do not include geometric transforms for multiview
+    #     print("Using heatmap_multiview model; removing geometric transforms from imgaug pipeline")
+    #     kind = "dlc-mv"  # don't allow for top-down option, which includes flips
 
     data_transform = []
 
@@ -40,7 +42,7 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
         # resizing happens below
         print("using default image augmentation pipeline (resizing only)")
 
-    elif kind in ["dlc", "dlc-lr", "dlc-top-down", "dlc-mv"]:
+    elif kind in ["dlc", "dlc-lr", "dlc-top-down", "dlc-mv", "3d-mv"]:
 
         print(f"using {kind} image augmentation pipeline")
 
@@ -91,12 +93,13 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
             iaa.CoarsePepper(p=prct, size_percent=size_prct),
         ))
         # elastic transform
-        alpha = (0, 10)  # controls strength of displacement
-        sigma = 5  # cotnrols smoothness of displacement
-        data_transform.append(iaa.Sometimes(
-            apply_prob_0,
-            iaa.ElasticTransformation(alpha=alpha, sigma=sigma)
-        ))
+        if kind.find('3d-mv') == -1:
+            alpha = (0, 10)  # controls strength of displacement
+            sigma = 5  # controls smoothness of displacement
+            data_transform.append(iaa.Sometimes(
+                apply_prob_0,
+                iaa.ElasticTransformation(alpha=alpha, sigma=sigma)
+            ))
         # hist eq
         data_transform.append(iaa.Sometimes(
             0.1,
@@ -126,8 +129,8 @@ def imgaug_transform(cfg: DictConfig) -> iaa.Sequential:
     else:
         raise NotImplementedError("must choose imgaug kind from 'default', 'dlc', 'dlc-top-down'")
 
-    # do not resize when using dynamic crop pipeline
-    if not cfg.data.get('dynamic_crop', False):
+    # do not resize when using dynamic crop pipeline or 3d augmentations
+    if (not cfg.data.get('dynamic_crop', False)) and (not kind == "3d-mv"):
         data_transform.append(
             iaa.Resize({
                 "height": cfg.data.image_resize_dims.height,

@@ -29,6 +29,54 @@ __all__ = [
 ]
 
 
+import itertools
+from kornia.geometry.calibration import undistort_points
+from kornia.geometry.epipolar import triangulate_points
+
+
+def project_camera_pairs_to_3d(
+    points: TensorType["batch", "num_views", "num_keypoints", 2],
+    intrinsics: TensorType["batch", "num_views", 3, 3],
+    extrinsics: TensorType["batch", "num_views", 3, 4],
+    dist: TensorType["batch", "num_views", "num_params"],
+) -> TensorType["batch", "cam_pair", "num_keypoints", 3]:
+    """Project 2D keypoints from each pair of cameras into 3D world space."""
+
+    num_batch, num_views, num_keypoints, _ = points.shape
+
+    points = undistort_points(
+        points=points,
+        K=intrinsics,
+        dist=dist,
+        new_K=torch.eye(3, device=points.device).expand(num_batch, num_views, 3, 3),
+    )
+
+    p3d = []
+    for j1, j2 in itertools.combinations(range(num_views), 2):
+        tri = triangulate_points(
+            P1=extrinsics[:, j1],
+            P2=extrinsics[:, j2],
+            points1=points[:, j1, ...],
+            points2=points[:, j2, ...],
+        )
+        p3d.append(tri)
+    return torch.stack(p3d, dim=1)
+
+
+def get_valid_projection_masks(
+    points: TensorType["batch", "num_views", "num_keypoints", 2]
+) -> TensorType["batch", "cam_pair", "num_keypoints"]:
+
+    num_batch, num_views, num_keypoints, _ = points.shape
+
+    m3d = []
+    for j1, j2 in itertools.combinations(range(num_views), 2):
+        points1 = points[:, j1, :, 0]
+        points2 = points[:, j2, :, 0]
+        m3d.append(~torch.isnan(points1 + points2))
+    return torch.stack(m3d, dim=1)
+
+
 class HeatmapTrackerMultiview(HeatmapTracker):
 
     def __init__(
@@ -99,6 +147,9 @@ class HeatmapTrackerMultiview(HeatmapTracker):
             out_channels=num_views,
             final_relu=False,  # we'll use spatial_softmax2d instead later
         )
+
+        # this attribute will be modified by AnnealWeight callback during training
+        self.total_unsupervised_importance = torch.tensor(1.0)
 
     def heatmaps_from_representations(
         self,
@@ -201,12 +252,47 @@ class HeatmapTrackerMultiview(HeatmapTracker):
         # heatmaps -> keypoints
         pred_keypoints_sv, confidence_sv = self.run_subpixelmaxima(pred_heatmaps_sv)
         pred_keypoints_mv, confidence_mv = self.run_subpixelmaxima(pred_heatmaps_mv)
+        # bounding box coords -> original image coords
+        target_keypoints = convert_bbox_coords(batch_dict, batch_dict["keypoints"])
+        pred_keypoints_sv = convert_bbox_coords(batch_dict, pred_keypoints_sv)
+        pred_keypoints_mv = convert_bbox_coords(batch_dict, pred_keypoints_mv)
+        # project predictions from pairs of views into 3d if calibration data available
+        if batch_dict["keypoints_3d"].shape[-1] == 3:
+            num_views = batch_dict["images"].shape[1]
+            num_keypoints = pred_keypoints_sv.shape[1] // 2 // num_views
+            pred_keypoints_3d_sv = project_camera_pairs_to_3d(
+                points=pred_keypoints_sv.reshape((-1, num_views, num_keypoints, 2)),
+                intrinsics=batch_dict["intrinsic_matrix"],
+                extrinsics=batch_dict["extrinsic_matrix"],
+                dist=batch_dict["distortions"],
+            )
+            pred_keypoints_3d_mv = project_camera_pairs_to_3d(
+                points=pred_keypoints_mv.reshape((-1, num_views, num_keypoints, 2)),
+                intrinsics=batch_dict["intrinsic_matrix"],
+                extrinsics=batch_dict["extrinsic_matrix"],
+                dist=batch_dict["distortions"],
+            )
+            keypoints_pred_3d = torch.cat([pred_keypoints_3d_sv, pred_keypoints_3d_mv])
+            keypoints_targ_3d = torch.cat([batch_dict["keypoints_3d"], batch_dict["keypoints_3d"]])
+
+            keypoints_mask_3d_ = get_valid_projection_masks(
+                target_keypoints.reshape((-1, num_views, num_keypoints, 2))
+            )
+            keypoints_mask_3d = torch.cat([keypoints_mask_3d_, keypoints_mask_3d_])
+        else:
+            keypoints_pred_3d = None
+            keypoints_targ_3d = None
+            keypoints_mask_3d = None
+
         return {
             "heatmaps_targ": torch.cat([batch_dict["heatmaps"], batch_dict["heatmaps"]], dim=0),
             "heatmaps_pred": torch.cat([pred_heatmaps_sv, pred_heatmaps_mv], dim=0),
-            "keypoints_targ": torch.cat([batch_dict["keypoints"], batch_dict["keypoints"]], dim=0),
+            "keypoints_targ": torch.cat([target_keypoints, target_keypoints], dim=0),
             "keypoints_pred": torch.cat([pred_keypoints_sv, pred_keypoints_mv], dim=0),
             "confidences": torch.cat([confidence_sv, confidence_mv], dim=0),
+            "keypoints_targ_3d": keypoints_targ_3d,  # shape (2*batch, num_keypoints, 3)
+            "keypoints_pred_3d": keypoints_pred_3d,  # shape (2*batch, cam_pairs, num_keypoints, 3)
+            "keypoints_mask_3d": keypoints_mask_3d,  # shape (2*batch, cam_pairs, num_keypoints)
         }
 
     def predict_step(

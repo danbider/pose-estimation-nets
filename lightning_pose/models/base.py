@@ -444,6 +444,7 @@ class BaseSupervisedTracker(BaseFeatureExtractor):
             MultiviewHeatmapLabeledBatchDict,
         ],
         stage: Optional[Literal["train", "val", "test"]] = None,
+        anneal_weight: torch.Tensor | None = None,
     ) -> TensorType[(), float]:
         """Compute and log the losses on a batch of labeled data."""
 
@@ -451,7 +452,7 @@ class BaseSupervisedTracker(BaseFeatureExtractor):
         data_dict = self.get_loss_inputs_labeled(batch_dict=batch_dict)
 
         # compute and log loss on labeled data
-        loss, log_list = self.loss_factory(stage=stage, **data_dict)
+        loss, log_list = self.loss_factory(stage=stage, anneal_weight=anneal_weight, **data_dict)
 
         # compute and log pixel_error loss on labeled data
         loss_rmse, _ = self.rmse_loss(stage=stage, **data_dict)
@@ -485,7 +486,19 @@ class BaseSupervisedTracker(BaseFeatureExtractor):
         batch_idx: int,
     ) -> Dict[str, TensorType[(), float]]:
         """Base training step, a wrapper around the `evaluate_labeled` method."""
-        loss = self.evaluate_labeled(batch_dict, "train")
+        # on each epoch, self.total_unsupervised_importance is modified by the
+        # AnnealWeight callback
+        if hasattr(self, "total_unsupervised_importance"):
+            self.log(
+                "total_unsupervised_importance",
+                self.total_unsupervised_importance,
+                prog_bar=True,
+                # don't need to sync_dist because this is always the same across processes.
+            )
+            anneal_weight = self.total_unsupervised_importance
+        else:
+            anneal_weight = None
+        loss = self.evaluate_labeled(batch_dict, "train", anneal_weight=anneal_weight)
         return {"loss": loss}
 
     def validation_step(
@@ -576,6 +589,7 @@ class SemiSupervisedTrackerMixin(object):
         loss_super = self.evaluate_labeled(
             batch_dict=batch_dict["labeled"],
             stage="train",
+            anneal_weight=self.total_unsupervised_importance,
         )
 
         # computes and logs unsupervised losses

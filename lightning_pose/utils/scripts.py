@@ -100,6 +100,10 @@ def get_dataset(
                 "No precautions regarding the size of the images were considered here, "
                 "images will be resized accordingly to configs!"
             )
+            if cfg.training.imgaug == '3d-mv':
+                camera_params_path = cfg.data.camera_params_file
+            else:
+                camera_params_path = None
             dataset = MultiviewHeatmapDataset(
                 root_directory=data_dir,
                 csv_paths=cfg.data.csv_file,
@@ -108,6 +112,9 @@ def get_dataset(
                 imgaug_transform=imgaug_transform,
                 uniform_heatmaps=cfg.training.get("uniform_heatmaps_for_nan_keypoints", False),
                 do_context=cfg.model.model_type == "heatmap_mhcrnn",  # context only for mhcrnn
+                camera_params_path=camera_params_path,
+                resize_height=cfg.data.image_resize_dims.height,
+                resize_width=cfg.data.image_resize_dims.width,
             )
         else:
             dataset = HeatmapDataset(
@@ -227,6 +234,13 @@ def get_loss_factories(
     if cfg.model.model_type in ["heatmap", "heatmap_mhcrnn", "heatmap_multiview"]:
         loss_name = "heatmap_" + cfg.model.heatmap_loss_type
         loss_params_dict["supervised"][loss_name] = {"log_weight": 0.0}
+        if cfg.model.model_type == "heatmap_multiview" and cfg.data.get("camera_params_file"):
+            log_weight = cfg.losses.get("supervised_pairwise_projections", {}).get("log_weight")
+            if log_weight is not None:
+                print("adding supervised pairwise projection loss")
+                loss_params_dict["supervised"]["supervised_pairwise_projections"] = {
+                    "log_weight": log_weight
+                }
     else:
         loss_params_dict["supervised"][cfg.model.model_type] = {"log_weight": 0.0}
 
@@ -515,7 +529,10 @@ def get_callbacks(
         callbacks.append(ckpt_callback)
 
     # we just need this callback for unsupervised models
-    if (cfg.model.losses_to_use != []) and (cfg.model.losses_to_use is not None):
+    if (
+        (cfg.model.losses_to_use != []) and (cfg.model.losses_to_use is not None)
+        or cfg.losses.get("supervised_pairwise_projections", {}).get("log_weight") is not None
+    ):
         anneal_weight_callback = AnnealWeight(**cfg.callbacks.anneal_weight)
         callbacks.append(anneal_weight_callback)
 
