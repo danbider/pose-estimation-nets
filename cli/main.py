@@ -135,7 +135,7 @@ def _build_parser():
             Cropped videos are saved to:
                 <model_dir>/
                 └── video_preds/
-                    ├── <video_filename>_predictions.csv  (predictions)
+                    ├── <video_filename>.csv              (predictions)
                     ├── <video_filename>_bbox.csv         (bbox)
                     └── remapped_<video_filename>.csv     (TODO move to remap command)
                 └── cropped_videos/
@@ -159,8 +159,24 @@ def _build_parser():
     )
 
     crop_parser.add_argument(
-        "input_path", type=Path, nargs="+", help="one or more video files"
+        "input_path", type=Path, nargs="+", help="one or more files"
     )
+
+    remap_parser = subparsers.add_parser(
+        "remap",
+        description=dedent(
+            """\
+            Remaps predictions from cropped to original coordinate space.
+            Requires model predictions to already have been generated using `litpose predict`.
+
+            Remapped predictions are saved as "remapped_{preds_file}" in the same folder as preds_file.
+            """
+        ),
+        usage="litpose remap <preds_file> <bbox_file>",
+    )
+    remap_parser.add_argument("preds_file", type=Path, help="path to a prediction file")
+    remap_parser.add_argument("bbox_file", type=Path, help="path to a bbox file")
+
     return parser
 
 
@@ -182,6 +198,9 @@ def main():
 
     elif args.command == "crop":
         _crop(args)
+
+    elif args.command == "remap":
+        _remap_preds(args)
 
 
 def _crop(args: argparse.Namespace):
@@ -242,28 +261,18 @@ def _crop(args: argparse.Namespace):
 
 
 def _remap_preds(args: argparse.Namespace):
-    """TODO: Integrate this with command-line, replace --detector_mode.
-    Below script is for videos (not yet utilized) but can easily be extended to CSV file.
-    """
     import lightning_pose.utils.cropzoom as cz
 
-    model_dir = args.model_dir
-    input_paths = [Path(p) for p in args.input_path]
 
-    for input_video_file in input_paths:
-        assert input_video_file.suffix == ".mp4", "Only mp4 files supported."
-        input_preds_file = model_dir / "video_preds" / (input_video_file.stem + ".csv")
-        input_bbox_file = (
-            model_dir / "cropped_videos" / (input_video_file.stem + "_bbox.csv")
-        )
-        output_file = input_preds_file.with_stem("remapped_" + input_preds_file.stem)
+    output_file = args.preds_file.with_name(
+        "remapped_" + args.preds_file.name
+    )
 
-        cz.generate_cropped_csv_file(
-            input_preds_file,
-            input_bbox_file,
-            output_file,
-        )
-
+    cz.generate_cropped_csv_file(
+        input_csv_file=args.preds_file,
+        input_bbox_file=args.bbox_file,
+        output_csv_file=output_file,
+    )
 
 def _train(args: argparse.Namespace):
     import hydra
