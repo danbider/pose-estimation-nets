@@ -16,51 +16,17 @@ __all__ = ["generate_cropped_labeled_frames", "generate_cropped_video"]
 
 
 @typechecked
-def _calculate_bbox_size(
-    keypoints_per_frame: np.ndarray, crop_ratio: float = 1.0
-) -> int:
-    """Given all labeled keypoints, computes the bounding box square size as
-    the length of one side in pixels.
-    First we compute the maximum bounding box that would always encompass
-    the animal (maximum difference of all x's and y's per frame, max over all frames).
-    Then we take the larger dimension of the bbox (x or y). Finally we scale by `crop_ratio`.
-
-    Arguments:
-        keypoints_per_frame: np array of all labeled frames. Shape of (frames, keypoints, x|y).
-        crop_ratio:
-    """
-    # Extract x and y coordinates
-    x_coords = keypoints_per_frame[:, :, 0]  # All rows, all columns, first element (x)
-    y_coords = keypoints_per_frame[:, :, 1]  # All rows, all columns, second element (y)
-    max_x_diff_per_frame = np.max(x_coords, axis=1) - np.min(x_coords, axis=1)
-    max_y_diff_per_frame = np.max(y_coords, axis=1) - np.min(y_coords, axis=1)
-
-    # Max of all x_diff and y_diff over all frames. A scalar.
-    max_bbox_size = np.max([max_x_diff_per_frame, max_y_diff_per_frame], axis=(0, 1))
-
-    # Scale by crop_ratio, and take ceiling.
-    bbox_size = int(np.ceil(max_bbox_size * crop_ratio))
-
-    # Many video players don't like odd dimensions.
-    # Make sure the bbox has even dimensions.
-    bbox_size = bbox_size if bbox_size % 2 == 0 else bbox_size + 1
-
-    return bbox_size
-
-
-@typechecked
 def _calculate_bbox_size_dynamic(
     keypoints_per_frame: np.ndarray, crop_ratio: float = 1.0
 ) -> np.ndarray:
-    """Given all labeled keypoints, computes the bounding box square size as
-    the length of one side in pixels.
-    First we compute the maximum bounding box that would always encompass
-    the animal (maximum difference of all x's and y's per frame, max over all frames).
-    Then we take the larger dimension of the bbox (x or y). Finally we scale by `crop_ratio`.
+    """Computes bounding box size for each frame.
 
     Arguments:
-        keypoints_per_frame: np array of all labeled frames. Shape of (frames, keypoints, x|y).
-        crop_ratio:
+        keypoints_per_frame: Numpy array, shape of (frame, keypoint, x|y).
+        crop_ratio: ratio to multiply max difference between x, y to get
+
+    Returns:
+        numpy array:  Shape of (frame, 2 (h|w))
     """
     # Extract x and y coordinates
     x_coords = keypoints_per_frame[:, :, 0]  # All rows, all columns, first element (x)
