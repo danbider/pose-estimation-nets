@@ -16,7 +16,7 @@ __all__ = ["generate_cropped_labeled_frames", "generate_cropped_video"]
 
 
 @typechecked
-def _calculate_bbox_size_dynamic(
+def _calculate_bbox_size(
     keypoints_per_frame: np.ndarray, crop_ratio: float = 1.0
 ) -> np.ndarray:
     """Computes bounding box size for each frame.
@@ -78,7 +78,7 @@ def _compute_bbox_df(
         pred_df.loc[:, coord_mask].to_numpy().reshape(pred_df.shape[0], -1, 2)
     )
 
-    bbox_sizes = _calculate_bbox_size_dynamic(
+    bbox_sizes = _calculate_bbox_size(
         keypoints_per_frame, crop_ratio=crop_ratio
     )
 
