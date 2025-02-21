@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING
 
 from omegaconf import OmegaConf
 
-from lightning_pose.model_config import ModelConfig
-
 if TYPE_CHECKING:
     from lightning_pose.model import Model
 
@@ -297,13 +295,26 @@ def _train(args: argparse.Namespace):
         output_dir.mkdir(parents=True, exist_ok=True)
         # Maintain legacy hydra chdir until downstream no longer depends on it.
 
-        detector_model = None
         if args.detector_model:
             # create detector model object before chdir so that relative path is resolved correctly
             detector_model = Model.from_dir(args.detector_model)
+            import copy
+
+            cfg = copy.deepcopy(cfg)
+            cfg.data.data_dir = str(detector_model.cropped_data_dir())
+            cfg.data.video_dir = str(detector_model.cropped_videos_dir())
+            if isinstance(cfg.data.csv_file, str):
+                cfg.data.csv_file = str(
+                    detector_model.cropped_csv_file_path(cfg.data.csv_file)
+                )
+            else:
+                cfg.data.csv_file = [
+                    str(detector_model.cropped_csv_file_path(f)) for f in cfg.data.csv_file
+                ]
+            cfg.eval.test_videos_directory = cfg.data.video_dir
 
         os.chdir(output_dir)
-        train(cfg, detector_model=detector_model)
+        train(cfg)
 
 
 def _predict(args: argparse.Namespace):

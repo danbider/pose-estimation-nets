@@ -31,29 +31,11 @@ __all__ = ["train"]
 
 
 @typechecked
-def train(cfg: DictConfig, detector_model: Model | None = None) -> Model:
+def train(cfg: DictConfig) -> Model:
     """
     Trains a model using the configuration `cfg`. Saves model to current
     working directory (callers should `chdir` to the desired `model_dir` prior to calling).
     """
-    if detector_model is not None:
-        import copy
-
-        cfg = copy.deepcopy(cfg)
-        with open_dict(cfg.data):
-            cfg.data.detector_model_dir = str(detector_model.model_dir)
-        cfg.data.data_dir = str(detector_model.cropped_data_dir())
-        cfg.data.video_dir = str(detector_model.cropped_videos_dir())
-        if isinstance(cfg.data.csv_file, str):
-            cfg.data.csv_file = str(
-                detector_model.cropped_csv_file_path(cfg.data.csv_file)
-            )
-        else:
-            cfg.data.csv_file = [
-                str(detector_model.cropped_csv_file_path(f)) for f in cfg.data.csv_file
-            ]
-        cfg.eval.test_videos_directory = cfg.data.video_dir
-
     model = _train(cfg)
     # Comment out the above, and uncomment the below to skip
     # training and go straight to post-training analysis:
