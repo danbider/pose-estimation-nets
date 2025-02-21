@@ -12,7 +12,11 @@ from typeguard import typechecked
 
 from lightning_pose.utils import io
 
-__all__ = ["generate_cropped_labeled_frames", "generate_cropped_video"]
+__all__ = [
+    "generate_cropped_labeled_frames",
+    "generate_cropped_video",
+    "generate_cropped_csv_file",
+]
 
 
 @typechecked
@@ -78,9 +82,7 @@ def _compute_bbox_df(
         pred_df.loc[:, coord_mask].to_numpy().reshape(pred_df.shape[0], -1, 2)
     )
 
-    bbox_sizes = _calculate_bbox_size(
-        keypoints_per_frame, crop_ratio=crop_ratio
-    )
+    bbox_sizes = _calculate_bbox_size(keypoints_per_frame, crop_ratio=crop_ratio)
 
     # Shape: (frames, keypoints, x|y) -> (frames, x|y)
     centroids = keypoints_per_frame.mean(axis=1)
