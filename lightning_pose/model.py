@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TypedDict
 
 import pandas as pd
-from lightning_pose.utils import cropzoom
 from omegaconf import DictConfig, OmegaConf
 
 from lightning_pose.model_config import ModelConfig
@@ -274,10 +273,6 @@ class Model:
             data_module = _build_datamodule_pred(self.cfg)
             compute_metrics_fn(self.cfg, str(prediction_csv_file), data_module)
 
-        if self.config.is_detector():
-            # Hack: we're not cropping videos just yet.
-            # but create an empty directory to pass assertion in pose model train.
-            self.cropped_videos_dir().mkdir()
 
         return self.PredictionResult(predictions=df)
 

@@ -118,11 +118,6 @@ def _build_parser():
         action="store_true",
         help="skip generating prediction-annotated images/videos",
     )
-    post_prediction_args.add_argument(
-        "--detector_mode",
-        action="store_true",
-        help="Run this on a trained model to output detector outputs (cropped images and labeled CSV file).",
-    )
 
     # Crop command
     crop_parser = subparsers.add_parser(
@@ -316,20 +311,6 @@ def _predict(args: argparse.Namespace):
     from lightning_pose.model import Model
 
     model = Model.from_dir(args.model_dir, hydra_overrides=args.overrides)
-    if args.detector_mode:
-        model.cfg.detector = OmegaConf.create(
-            {
-                "crop_ratio": 2.0,
-                "anchor_keypoints": [
-                    "topBeak",
-                    "tipTail",
-                    "leftWing",
-                    "rightWing",
-                    "leftFoot",
-                    "rightFoot",
-                ],
-            }
-        )
     input_paths = [Path(p) for p in args.input_path]
 
     for p in input_paths:
