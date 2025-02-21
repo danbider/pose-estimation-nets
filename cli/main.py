@@ -4,9 +4,11 @@ import argparse
 import datetime
 import os
 import sys
-from omegaconf import OmegaConf
 from pathlib import Path
+from textwrap import dedent
 from typing import TYPE_CHECKING
+
+from omegaconf import OmegaConf
 
 from lightning_pose.model_config import ModelConfig
 
@@ -125,16 +127,32 @@ def _build_parser():
     # Crop command
     crop_parser = subparsers.add_parser(
         "crop",
-        description="Predicts keypoints on videos or images.\n"
-        "\n"
-        "  Cropped videos are saved to:\n"
-        "    <model_dir>/\n"
-        "    └── video_preds/\n"
-        "        └── <video_filename>_bbox.csv         (bbox)\n"
-        "        └── remapped_<video_filename>.csv         (remap command)\n"
-        "    └── cropped_videos/\n"
-        "        └── cropped_<video_filename>.mp4              (bbox)\n",
-        usage="litpose crop <model_dir> <input_path:video>...",
+        description=dedent(
+            """\
+            Crops a video or labeled frames based on model predictions.
+            Requires model predictions to already have been generated using `litpose predict`.
+    
+            Cropped videos are saved to:
+                <model_dir>/
+                └── video_preds/
+                    ├── <video_filename>_predictions.csv  (predictions)
+                    ├── <video_filename>_bbox.csv         (bbox)
+                    └── remapped_<video_filename>.csv     (TODO move to remap command)
+                └── cropped_videos/
+                    └── cropped_<video_filename>.mp4      (cropped video)
+
+            Cropped images are saved to:
+                <model_dir>/
+                └── image_preds/
+                    └── <csv_file_name>/
+                        ├── predictions.csv
+                        ├── bbox.csv                      (bbox)
+                        └── cropped_<csv_file_name>.csv   (cropped labels)
+                └── cropped_images/
+                        └── a/b/c/<image_name>.png        (cropped images)\
+            """
+        ),
+        usage="litpose crop <model_dir> <input_path:video|csv>...",
     )
     crop_parser.add_argument(
         "model_dir", type=types.existing_model_dir, help="path to a model directory"
@@ -172,29 +190,55 @@ def _crop(args: argparse.Namespace):
     model_dir = args.model_dir
     input_paths = [Path(p) for p in args.input_path]
 
-    for input_video_file in input_paths:
-        assert input_video_file.suffix == ".mp4", "Only mp4 files supported."
-        input_preds_file = model_dir / "video_preds" / (input_video_file.stem + ".csv")
-        output_bbox_file = (
-            model_dir / "cropped_videos" / (input_video_file.stem + "_bbox.csv")
-        )
-        output_file = (
-            model_dir / "cropped_videos" / ("cropped_" + input_video_file.name)
-        )
-        detector_cfg = OmegaConf.create(
-            {
-                "crop_ratio": 2.0,
-                # TODO add back in anchor keypoints.
-                "anchor_keypoints": [],
-            }
-        )
-        cz.generate_cropped_video(
-            input_video_file,
-            input_preds_file,
-            detector_cfg,
-            output_bbox_file,
-            output_file,
-        )
+    for input_path in input_paths:
+        if input_path.suffix == ".mp4":
+            input_preds_file = model_dir / "video_preds" / (input_path.stem + ".csv")
+            output_bbox_file = (
+                model_dir / "cropped_videos" / (input_path.stem + "_bbox.csv")
+            )
+            output_file = model_dir / "cropped_videos" / ("cropped_" + input_path.name)
+            detector_cfg = OmegaConf.create(
+                {
+                    "crop_ratio": 2.0,
+                    # TODO add back in anchor keypoints.
+                    "anchor_keypoints": [],
+                }
+            )
+            cz.generate_cropped_video(
+                input_video_file=input_path,
+                input_preds_file=input_preds_file,
+                detector_cfg=detector_cfg,
+                output_bbox_file=output_bbox_file,
+                output_file=output_file,
+            )
+        elif input_path.suffix == ".csv":
+            from lightning_pose.model import Model
+
+            model = Model.from_dir(model_dir)
+            preds_dir = model.image_preds_dir() / input_path.name
+            input_data_dir = Path(model.config.cfg.data.data_dir)
+            cropped_data_dir = model.cropped_data_dir()
+
+            output_bbox_file = preds_dir / "bbox.csv"
+            output_csv_file_path = preds_dir / ("cropped_" + input_path.name)
+            input_preds_file = preds_dir / "predictions.csv"
+            cz.generate_cropped_labeled_frames(
+                input_data_dir=input_data_dir,
+                input_csv_file=input_path,
+                input_preds_file=input_preds_file,
+                detector_cfg=OmegaConf.create(
+                    {
+                        "crop_ratio": 2.0,
+                        # TODO add back in anchor keypoints.
+                        "anchor_keypoints": [],
+                    }
+                ),
+                output_data_dir=cropped_data_dir,
+                output_bbox_file=output_bbox_file,
+                output_csv_file=output_csv_file_path,
+            )
+        else:
+            raise NotImplementedError("Only mp4 and csv files are supported.")
 
 
 def _remap_preds(args: argparse.Namespace):
@@ -242,8 +286,8 @@ def _train(args: argparse.Namespace):
         cfg = hydra.compose(config_name=args.config_file.stem, overrides=args.overrides)
 
         # Delay this import because it's slow.
-        from lightning_pose.train import train
         from lightning_pose.model import Model
+        from lightning_pose.train import train
 
         # TODO: Move some aspects of directory mgmt to the train function.
         output_dir.mkdir(parents=True, exist_ok=True)

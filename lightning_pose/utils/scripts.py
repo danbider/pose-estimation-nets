@@ -632,21 +632,20 @@ def compute_metrics_single(
     # for either labeled and unlabeled data, if a pca loss is specified in config, we compute the
     # associated metric
 
-    if cfg.data.get("detector_model_dir") is None:
-        if (
-            data_module is not None
-            and cfg.data.get("columns_for_singleview_pca", None) is not None
-            and len(cfg.data.columns_for_singleview_pca) != 0
-            and not isinstance(data_module.dataset, MultiviewHeatmapDataset)  # mirrored-only for now
-        ):
-            metrics_to_compute += ["pca_singleview"]
-        if (
-            data_module is not None
-            and cfg.data.get("mirrored_column_matches", None) is not None
-            and len(cfg.data.mirrored_column_matches) != 0
-            and not isinstance(data_module.dataset, MultiviewHeatmapDataset)  # mirrored-only for now
-        ):
-            metrics_to_compute += ["pca_multiview"]
+    if (
+        data_module is not None
+        and cfg.data.get("columns_for_singleview_pca", None) is not None
+        and len(cfg.data.columns_for_singleview_pca) != 0
+        and not isinstance(data_module.dataset, MultiviewHeatmapDataset)  # mirrored-only for now
+    ):
+        metrics_to_compute += ["pca_singleview"]
+    if (
+        data_module is not None
+        and cfg.data.get("mirrored_column_matches", None) is not None
+        and len(cfg.data.mirrored_column_matches) != 0
+        and not isinstance(data_module.dataset, MultiviewHeatmapDataset)  # mirrored-only for now
+    ):
+        metrics_to_compute += ["pca_multiview"]
 
     preds_file_path = Path(preds_file)
     # compute metrics; csv files will be saved to the same directory the prdictions are stored in

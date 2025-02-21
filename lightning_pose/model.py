@@ -139,7 +139,6 @@ class Model:
             compute_metrics=compute_metrics,
             generate_labeled_images=generate_labeled_images,
             output_dir=output_dir,
-            output_filename_stem="predictions",
             add_train_val_test_set=False,
         )
 
@@ -150,17 +149,12 @@ class Model:
         compute_metrics: bool = True,
         generate_labeled_images: bool = False,
         output_dir: str | Path | None = UNSPECIFIED,
-        output_filename_stem: str = "predictions",
-        bbox_filename_stem: str = "bbox",
         add_train_val_test_set: bool = False,
     ) -> PredictionResult:
         """
         See predict_on_label_csv for the rest of the arguments. The following are the
         arguments specific to the internal function.
         Args:
-            output_filename_stem (str): The stem of the output filename. Defaults to 'predictions'.
-                Used to generate predictions_new for OOD, and predictions_{view_name} for multi-view, in the
-                model_dir.
             add_train_val_test_set (bool): When predicting on training dataset, set to true to add the `set`
                 column to the prediction output.
         """
@@ -205,16 +199,12 @@ class Model:
 
         data_module_pred = _build_datamodule_pred(cfg_pred)
 
-        preds_file_path = output_dir / (output_filename_stem + ".csv")
+        preds_file_path = output_dir / "predictions.csv"
         preds_file = str(preds_file_path)
 
-        if not self.config.is_detector():
-            df = predict_dataset(
-                cfg_pred, data_module_pred, model=self.model, preds_file=preds_file
-            )
-        else:
-            # Temporarily skip prediction so we can run cropping only in a CPU machine job
-            df = None
+        df = predict_dataset(
+            cfg_pred, data_module_pred, model=self.model, preds_file=preds_file
+        )
 
         if compute_metrics:
             # HACK: True multi-view model treated as single-view model, so preds_file is
@@ -223,39 +213,6 @@ class Model:
                 cfg=cfg_pred,
                 preds_file=preds_file,
                 data_module=data_module_pred,
-            )
-
-        if self.config.is_detector():
-            """
-            Cropzoom detector directory structure:
-
-            model_dir/
-                predictions.csv
-                bbox.csv
-
-                predictions_new.csv
-                bbox_new.csv
-
-                image_preds/
-                    <csv_file_name>/
-                        predictions.csv
-                        bbox.csv
-                        cropped_<csv_file_name>.csv
-
-                cropped_images/
-                    a/b/c/<image_name>.png
-            """
-
-            bbox_file_path = output_dir / (bbox_filename_stem + ".csv")
-            output_csv_file_path = output_dir / ("cropped_" + csv_file.name)
-            cropzoom.generate_cropped_labeled_frames(
-                input_data_dir=Path(data_dir),
-                input_csv_file=csv_file,
-                input_preds_file=preds_file_path,
-                detector_cfg=self.cfg.detector,
-                output_data_dir=self.cropped_data_dir(),
-                output_bbox_file=bbox_file_path,
-                output_csv_file=output_csv_file_path,
             )
 
         return self.PredictionResult(predictions=df)
