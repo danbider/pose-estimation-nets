@@ -4,13 +4,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
+import tqdm
 from moviepy.editor import VideoFileClip
 from omegaconf import DictConfig
 from PIL import Image
-import tqdm
 from typeguard import typechecked
 
-from lightning_pose.utils.io import get_context_img_paths
+from lightning_pose.utils import io
 
 __all__ = ["generate_cropped_labeled_frames", "generate_cropped_video"]
 
@@ -136,9 +136,9 @@ def _crop_images(
     for center_img_path, row in tqdm.tqdm(
         bbox_df.iterrows(), total=len(bbox_df), desc="Building crop tasks"
     ):
-        # TODO this logic badly needs testing!
+        # TODO Add unit tests for this logic.
         center_img_path = Path(center_img_path)
-        for img_path in get_context_img_paths(center_img_path):
+        for img_path in io.get_context_img_paths(center_img_path):
             # If context frame:
             if img_path != center_img_path:
                 # There is no context frame. Continue.
@@ -229,6 +229,7 @@ def generate_cropped_labeled_frames(
     # Use predictions rather than CollectedData.csv because collected data can sometimes have NaNs.
     # load predictions
     pred_df = pd.read_csv(input_preds_file, header=[0, 1, 2], index_col=0)
+    pred_df = io.fix_empty_first_row(pred_df)
 
     # compute and save bbox_df
     bbox_df = _compute_bbox_df(
@@ -259,6 +260,7 @@ def generate_cropped_video(
 
     # Given the predictions, compute cropping bboxes
     pred_df = pd.read_csv(input_preds_file, header=[0, 1, 2], index_col=0)
+    pred_df = io.fix_empty_first_row(pred_df)
 
     # Save cropping bboxes
     bbox_df = _compute_bbox_df(
@@ -287,6 +289,7 @@ def generate_cropped_csv_file(
     # Read csv file from pose_model.cfg.data.csv_file
     # TODO: reuse header_rows logic from datasets.py
     csv_data = pd.read_csv(input_csv_file, header=[0, 1, 2], index_col=0)
+    csv_data = io.fix_empty_first_row(csv_data)
 
     bbox_data = pd.read_csv(input_bbox_file, index_col=0)
 
