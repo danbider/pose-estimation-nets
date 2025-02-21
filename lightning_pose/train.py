@@ -43,7 +43,7 @@ def train(cfg: DictConfig) -> Model:
     # model = Model.from_dir(os.getcwd())
 
     _evaluate_on_training_dataset(model)
-    _evaluate_on_ood_dataset(model)
+    _evaluate_on_training_dataset(model, ood_mode=True)
     _predict_test_videos(model)
 
     return model
@@ -56,53 +56,48 @@ def _absolute_csv_file(csv_file, data_dir):
     return csv_file
 
 
-def _evaluate_on_training_dataset(model: Model):
-    pretty_print_str("Predicting train/val/test images...")
-
+def _evaluate_on_training_dataset(model: Model, ood_mode=False):
+    """Arguments:
+    ood_mode: look for "_new"-suffixed versions of the training csv file"""
     if model.config.is_single_view():
         csv_file = _absolute_csv_file(
             model.config.cfg.data.csv_file, model.config.cfg.data.data_dir
         )
+        if ood_mode:
+            csv_file = csv_file.with_stem(csv_file.stem + "_new")
         csv_files = [csv_file]
     else:
         csv_files = []
         for csv_file in model.config.cfg.data.csv_file:
-            csv_files.append(
-                _absolute_csv_file(csv_file, model.config.cfg.data.data_dir)
-            )
+            csv_file = _absolute_csv_file(csv_file, model.config.cfg.data.data_dir)
+            csv_file = csv_file.with_stem(csv_file.stem + "_new")
+            csv_files.append(csv_file)
 
-    for csv_file in csv_files:
-        model.predict_on_label_csv_internal(
-            csv_file=csv_file,
-            data_dir=model.config.cfg.data.data_dir,
-            compute_metrics=True,
-            generate_labeled_images=False,
-            add_train_val_test_set=True,
-        )
+    # In ood mode, prediction is conditional on csv file existence.
+    if not ood_mode or csv_files[0].exists():
+        # Print a custom message when in OOD mode.
+        if ood_mode:
+            pretty_print_str("Predicting OOD images...")
+        else:
+            pretty_print_str("Predicting train/val/test images...")
 
-
-def _evaluate_on_ood_dataset(model: Model):
-    if model.config.is_single_view():
-        csv_file = _absolute_csv_file(
-            model.config.cfg.data.csv_file, model.config.cfg.data.data_dir
-        )
-        ood_csv_file = csv_file.with_stem(csv_file.stem + "_new")
-        csv_files = [ood_csv_file]
-    else:
-        csv_files = []
-        for csv_file in model.config.cfg.data.csv_file:
-            _absolute_csv_file(csv_file, model.config.cfg.data.data_dir)
-            ood_csv_file = csv_file.with_stem(csv_file.stem + "_new")
-            csv_files.append(ood_csv_file)
-
-    if csv_files[0].exists():
         for csv_file in csv_files:
             model.predict_on_label_csv_internal(
                 csv_file=csv_file,
                 data_dir=model.config.cfg.data.data_dir,
                 compute_metrics=True,
                 generate_labeled_images=False,
+                add_train_val_test_set=(not ood_mode),
             )
+
+            # Copy output files to model_dir.
+            for p_file in (model.image_preds_dir() / csv_file.name).glob(
+                "predictions*.csv"
+            ):
+                out_file = model.model_dir / p_file.name
+                if ood_mode:
+                    out_file = out_file.with_stem(out_file.stem + "_new")
+                shutil.copy(p_file, out_file)
 
 
 def _predict_test_videos(model: Model):
