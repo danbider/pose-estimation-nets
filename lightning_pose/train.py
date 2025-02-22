@@ -43,7 +43,7 @@ def train(cfg: DictConfig) -> Model:
     # model = Model.from_dir(os.getcwd())
 
     _evaluate_on_training_dataset(model)
-    _evaluate_on_ood_dataset(model)
+    _evaluate_on_training_dataset(model, ood_mode=True)
     _predict_test_videos(model)
 
     return model
@@ -56,72 +56,48 @@ def _absolute_csv_file(csv_file, data_dir):
     return csv_file
 
 
-def _evaluate_on_training_dataset(model: Model):
-    pretty_print_str("Predicting train/val/test images...")
-
+def _evaluate_on_training_dataset(model: Model, ood_mode=False):
+    """Arguments:
+    ood_mode: look for "_new"-suffixed versions of the training csv file"""
     if model.config.is_single_view():
         csv_file = _absolute_csv_file(
             model.config.cfg.data.csv_file, model.config.cfg.data.data_dir
         )
+        if ood_mode:
+            csv_file = csv_file.with_stem(csv_file.stem + "_new")
         csv_files = [csv_file]
-        output_filename_stems = ["predictions"]
     else:
         csv_files = []
-        output_filename_stems = []
-        for csv_file, view_name in zip(
-            model.config.cfg.data.csv_file, model.config.cfg.data.view_names
-        ):
-            csv_files.append(
-                _absolute_csv_file(csv_file, model.config.cfg.data.data_dir)
-            )
-            output_filename_stems.append(f"predictions_{view_name}")
-
-    for csv_file, output_filename_stem in zip(csv_files, output_filename_stems):
-        model.predict_on_label_csv_internal(
-            csv_file=csv_file,
-            data_dir=model.config.cfg.data.data_dir,
-            # TODO annotate with train/val/test split metadata.
-            compute_metrics=True,
-            generate_labeled_images=False,
-            output_dir=model.model_dir,
-            output_filename_stem=output_filename_stem,
-            add_train_val_test_set=True,
-        )
-
-
-def _evaluate_on_ood_dataset(model: Model):
-    if model.config.is_single_view():
-        csv_file = _absolute_csv_file(
-            model.config.cfg.data.csv_file, model.config.cfg.data.data_dir
-        )
-        ood_csv_file = csv_file.with_stem(csv_file.stem + "_new")
-        ood_csv_files = [ood_csv_file]
-        output_filename_stems = ["predictions_new"]
-    else:
-        ood_csv_files = []
-        output_filename_stems = []
-        for csv_file, view_name in zip(
-            model.config.cfg.data.csv_file, model.config.cfg.data.view_names
-        ):
+        for csv_file in model.config.cfg.data.csv_file:
             csv_file = _absolute_csv_file(csv_file, model.config.cfg.data.data_dir)
-            ood_csv_file = csv_file.with_stem(csv_file.stem + "_new")
-            ood_csv_files.append(ood_csv_file)
-            output_filename_stems.append(f"predictions_new_{view_name}")
+            csv_file = csv_file.with_stem(csv_file.stem + "_new")
+            csv_files.append(csv_file)
 
-    if ood_csv_files[0].is_file():
-        pretty_print_str("Predicting OOD images...")
+    # In ood mode, prediction is conditional on csv file existence.
+    if not ood_mode or csv_files[0].exists():
+        # Print a custom message when in OOD mode.
+        if ood_mode:
+            pretty_print_str("Predicting OOD images...")
+        else:
+            pretty_print_str("Predicting train/val/test images...")
 
-        for ood_csv_file, output_filename_stem in zip(
-            ood_csv_files, output_filename_stems
-        ):
-            model.predict_on_label_csv_internal(
-                csv_file=ood_csv_file,
+        for csv_file in csv_files:
+            model.predict_on_label_csv(
+                csv_file=csv_file,
                 data_dir=model.config.cfg.data.data_dir,
                 compute_metrics=True,
                 generate_labeled_images=False,
-                output_dir=model.model_dir,
-                output_filename_stem=output_filename_stem,
+                add_train_val_test_set=(not ood_mode),
             )
+
+            # Copy output files to model_dir.
+            for p_file in (model.image_preds_dir() / csv_file.name).glob(
+                "predictions*.csv"
+            ):
+                out_file = model.model_dir / p_file.name
+                if ood_mode:
+                    out_file = out_file.with_stem(out_file.stem + "_new")
+                shutil.copy(p_file, out_file)
 
 
 def _predict_test_videos(model: Model):
