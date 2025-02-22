@@ -82,7 +82,7 @@ def _evaluate_on_training_dataset(model: Model, ood_mode=False):
             pretty_print_str("Predicting train/val/test images...")
 
         for csv_file in csv_files:
-            model.predict_on_label_csv_internal(
+            model.predict_on_label_csv(
                 csv_file=csv_file,
                 data_dir=model.config.cfg.data.data_dir,
                 compute_metrics=True,

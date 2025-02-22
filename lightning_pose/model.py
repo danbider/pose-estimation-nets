@@ -117,6 +117,7 @@ class Model:
         compute_metrics: bool = True,
         generate_labeled_images: bool = False,
         output_dir: str | Path | None = UNSPECIFIED,
+        add_train_val_test_set: bool = False,
     ) -> PredictionResult:
         """Predicts on a labeled dataset and computes error/loss metrics if applicable.
 
@@ -129,35 +130,11 @@ class Model:
             generate_labeled_images (bool, optional): Whether to save labeled images. Defaults to False.
             output_dir (str | Path, optional): The directory to save outputs to.
                 Defaults to `{model_dir}/image_preds/{csv_file_name}`. If set to None, outputs are not saved.
+            add_train_val_test_set (bool): When predicting on training dataset, set to true to add the `set`
+                column to the prediction output.
         Returns:
             PredictionResult: A PredictionResult object containing the predictions and metrics.
         """
-        return self.predict_on_label_csv_internal(
-            csv_file=csv_file,
-            data_dir=data_dir,
-            compute_metrics=compute_metrics,
-            generate_labeled_images=generate_labeled_images,
-            output_dir=output_dir,
-            add_train_val_test_set=False,
-        )
-
-    def predict_on_label_csv_internal(
-        self,
-        csv_file: str | Path,
-        data_dir: str | Path | None = None,
-        compute_metrics: bool = True,
-        generate_labeled_images: bool = False,
-        output_dir: str | Path | None = UNSPECIFIED,
-        add_train_val_test_set: bool = False,
-    ) -> PredictionResult:
-        """
-        See predict_on_label_csv for the rest of the arguments. The following are the
-        arguments specific to the internal function.
-        Args:
-            add_train_val_test_set (bool): When predicting on training dataset, set to true to add the `set`
-                column to the prediction output.
-        """
-
         self._load()
         csv_file = Path(csv_file).absolute()
         if data_dir is None:
