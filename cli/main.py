@@ -198,17 +198,27 @@ def main():
 
 def _crop(args: argparse.Namespace):
     import lightning_pose.utils.cropzoom as cz
+    from lightning_pose.model import Model
 
     model_dir = args.model_dir
+    model = Model.from_dir(model_dir)
+
+    # Make both cropped_images and cropped_videos dirs. Reason: After this, the user
+    # will train a pose model, and current code in io utils checks that both
+    # data_dir and videos_dir are present. if we just create one or the other,
+    # the check will fail.
+    model.cropped_data_dir().mkdir(parents=True, exist_ok=True)
+    model.cropped_videos_dir().mkdir(parents=True, exist_ok=True)
+
     input_paths = [Path(p) for p in args.input_path]
 
     for input_path in input_paths:
         if input_path.suffix == ".mp4":
-            input_preds_file = model_dir / "video_preds" / (input_path.stem + ".csv")
+            input_preds_file = model.video_preds_dir() / (input_path.stem + ".csv")
             output_bbox_file = (
-                model_dir / "cropped_videos" / (input_path.stem + "_bbox.csv")
+                model.cropped_videos_dir() / (input_path.stem + "_bbox.csv")
             )
-            output_file = model_dir / "cropped_videos" / ("cropped_" + input_path.name)
+            output_file = model.cropped_videos_dir() / ("cropped_" + input_path.name)
             detector_cfg = OmegaConf.create(
                 {
                     "crop_ratio": 2.0,
@@ -224,9 +234,6 @@ def _crop(args: argparse.Namespace):
                 output_file=output_file,
             )
         elif input_path.suffix == ".csv":
-            from lightning_pose.model import Model
-
-            model = Model.from_dir(model_dir)
             preds_dir = model.image_preds_dir() / input_path.name
             input_data_dir = Path(model.config.cfg.data.data_dir)
             cropped_data_dir = model.cropped_data_dir()

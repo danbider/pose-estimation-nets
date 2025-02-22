@@ -161,7 +161,7 @@ def return_absolute_data_paths(data_cfg: DictConfig, n_dirs_back: int = 3) -> Tu
         video_dir = os.path.join(data_dir, data_cfg.video_dir)
     # assert that those paths exist and in the proper format
     assert os.path.isdir(data_dir)
-    #assert os.path.isdir(video_dir) or os.path.isfile(video_dir)
+    assert os.path.isdir(video_dir) or os.path.isfile(video_dir)
     return data_dir, video_dir
 
 
